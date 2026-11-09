@@ -4,7 +4,15 @@ import { supabase } from './supabase'
 
 function JogosParticipante() {
   const [jogos, setJogos] = useState([])
+  
+const [jornadas, setJornadas] = useState([])
+
   const [palpites, setPalpites] = useState({})
+  
+const [historico, setHistorico] = useState([])
+
+const [filtroJogos, setFiltroJogos] = useState('todos')
+
   const [aCarregar, setACarregar] = useState(true)
   const [erro, setErro] = useState('')
 
@@ -76,14 +84,42 @@ async function guardarPalpite(jogo) {
 
   useEffect(() => {
     async function carregarJogos() {
-      const { data, error } = await supabase
-        .from('matches')
-        .select('id, home_team, away_team, kickoff, is_bonus, jornada_id')
-        .eq(
-          'competition_id',
-          '549b62f6-1f54-48db-b002-adb0e4754642'
-        )
-        .order('kickoff', { ascending: true })
+   
+const { data: epoca, error: erroEpoca } = await supabase
+  .from('seasons')
+  .select('id')
+  .eq('competition_id', '549b62f6-1f54-48db-b002-adb0e4754642')
+  .eq('status', 'active')
+  .single()
+
+if (erroEpoca || !epoca) {
+  setErro('Não foi possível encontrar a época ativa.')
+  setACarregar(false)
+  return
+}
+
+const { data: dadosJornadas, error: erroJornadas } =
+  await supabase
+    .from('jornadas')
+    .select('id, numero, nome')
+    .eq('season_id', epoca.id)
+    .order('numero', { ascending: true })
+
+if (erroJornadas) {
+  setErro('Erro ao carregar jornadas: ' + erroJornadas.message)
+  setACarregar(false)
+  return
+}
+
+setJornadas(dadosJornadas || [])
+
+const { data, error } = await supabase
+  .from('matches')
+  .select('id, home_team, away_team, kickoff, is_bonus, jornada_id')
+  .eq('competition_id', '549b62f6-1f54-48db-b002-adb0e4754642')
+  .eq('season_id', epoca.id)
+  .order('kickoff', { ascending: true })
+
 
       
 if (error) {
@@ -119,6 +155,24 @@ if (error) {
       }
 
       setPalpites(palpitesGuardados)
+      
+const idsJogos = (data || []).map(jogo => jogo.id)
+
+if (idsJogos.length > 0) {
+  
+const { data: pontuacoes, error: erroPontuacoes } =
+  await supabase.rpc('obter_meus_pontos')
+
+
+  if (erroPontuacoes) {
+    setErro('Erro ao carregar histórico: ' + erroPontuacoes.message)
+  } else {
+    setHistorico(pontuacoes || [])
+  }
+} else {
+  setHistorico([])
+}
+
     }
   }
 }
@@ -129,6 +183,30 @@ if (error) {
 
     carregarJogos()
   }, [])
+
+const jogosFiltrados = jogos.filter((jogo) => {
+  const comecou =
+    new Date(jogo.kickoff).getTime() <= Date.now()
+
+  if (filtroJogos === 'por-jogar') {
+    return !comecou
+  }
+
+  if (filtroJogos === 'terminados') {
+    return comecou
+  }
+
+  return true
+})
+
+const jogosPorJornada = jornadas
+  .map((jornada) => ({
+    ...jornada,
+    jogos: jogosFiltrados.filter(
+      (jogo) => jogo.jornada_id === jornada.id
+    ),
+  }))
+  .filter((jornada) => jornada.jogos.length > 0)
 
   if (aCarregar) {
     return <p>A carregar os jogos...</p>
@@ -142,12 +220,71 @@ if (error) {
     <div>
       <h2>⚽ Jogos da Predict League</h2>
 
-      {jogos.length === 0 ? (
-        <p>Ainda não existem jogos disponíveis.</p>
-      ) : (
-        jogos.map((jogo) => (
-          <div
-            key={jogo.id}
+<div style={{
+  display: 'flex',
+  gap: '10px',
+  marginBottom: '20px',
+  flexWrap: 'wrap',
+}}>
+  {[
+    ['todos', '⚽ Todos'],
+    ['por-jogar', '📅 Por jogar'],
+    ['terminados', '🏁 Terminados'],
+  ].map(([valor, nome]) => (
+    <button
+      key={valor}
+      type="button"
+      onClick={() => setFiltroJogos(valor)}
+      style={{
+        padding: '10px 15px',
+        borderRadius: '8px',
+        border: 'none',
+        cursor: 'pointer',
+        background: filtroJogos === valor
+          ? '#22c55e'
+          : '#29384d',
+        color: filtroJogos === valor
+          ? '#052e16'
+          : 'white',
+        fontWeight: 'bold',
+      }}
+    >
+      {nome}
+    </button>
+  ))}
+</div>
+
+      
+{jogosPorJornada.length === 0 ? (
+  <p>Não existem jogos para o filtro selecionado.</p>
+
+) : (
+  jogosPorJornada.map((jornada) => (
+
+  
+<details key={jornada.id} open>
+
+     <summary style={{
+      color: '#22c55e',
+      background: '#0f172a',
+      padding: '15px',
+      borderRadius: '10px',
+      marginTop: '25px',
+      marginBottom: '15px',
+      borderLeft: '4px solid #22c55e',
+    }}>
+      
+📅 {jornada.nome || `Jornada ${jornada.numero}`}
+{' '}— {jornada.jogos.length}
+{jornada.jogos.length === 1 ? ' jogo' : ' jogos'}
+
+    /</summary>
+
+   
+{jornada.jogos.map((jogo) => (
+  <div
+    key={jogo.id}
+
             style={{
               background: '#172235',
               padding: '18px',
@@ -169,6 +306,61 @@ if (error) {
                 ⭐ Jogo Bónus — Pontuação a dobrar
               </p>
             )}
+            
+{(() => {
+  const resultado = historico.find(
+    item => item.match_id === jogo.id
+  )
+
+  if (!resultado || resultado.points === null) {
+    return null
+  }
+
+  return (
+    <div style={{
+      background: '#0f172a',
+      border: '1px solid #334155',
+      borderRadius: '10px',
+      padding: '12px',
+      marginTop: '12px',
+    }}>
+      
+<p>
+  🎯 O teu prognóstico:
+  {' '}{palpites[jogo.id]?.casa}–{palpites[jogo.id]?.fora}
+</p>
+
+      <p>
+        🏁 Resultado oficial:
+        {' '}{resultado.home_score}–{resultado.away_score}
+      </p>
+
+      <p style={{
+        color: '#22c55e',
+        fontWeight: 'bold',
+      }}>
+        🏆 Pontos conquistados: +{resultado.points}
+      </p>
+
+      
+{resultado.exact_score ? (
+  <p style={{ color: '#22c55e' }}>
+    🎯 Acertaste no resultado exato!
+  </p>
+) : resultado.points > 0 ? (
+  <p style={{ color: '#facc15' }}>
+    ✅ Acertaste na tendência!
+  </p>
+) : (
+  <p style={{ color: '#f87171' }}>
+    ❌ Não acertaste no prognóstico.
+  </p>
+)}
+
+    </div>
+  )
+})()}
+
             {new Date(jogo.kickoff).getTime() > Date.now() ? (
   <div style={{ marginTop: '15px' }}>
     <p>🎯 O teu prognóstico:</p>
@@ -239,9 +431,14 @@ if (error) {
     🔒 Prognósticos encerrados — o jogo já começou.
   </p>
 )}
+         
           </div>
-        ))
-      )}
+        ))}
+      </details>
+    ))
+  )}
+
+
     </div>
   )
 }
