@@ -7,11 +7,31 @@ const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
 function Liga() {
   const [classificacao, setClassificacao] = useState([])
   
+const [tipoClassificacao, setTipoClassificacao] = useState('geral')
+const [jornadas, setJornadas] = useState([])
+const [jornadaSelecionada, setJornadaSelecionada] = useState('')
+const [classificacaoJornada, setClassificacaoJornada] = useState([])
+const [aCarregarJornada, setACarregarJornada] = useState(false)
+const [erroJornada, setErroJornada] = useState('')
+
 const [utilizadorAtual, setUtilizadorAtual] = useState(null)
 
 const minhaPosicao = classificacao.findIndex(
   jogador => jogador.user_id === utilizadorAtual
 )
+
+const classificacaoVisivel =
+  tipoClassificacao === 'geral'
+    ? classificacao
+    : classificacaoJornada
+
+const minhaPosicaoVisivel = classificacaoVisivel.findIndex(
+  jogador => jogador.user_id === utilizadorAtual
+)
+
+const meusDadosVisiveis = minhaPosicaoVisivel >= 0
+  ? classificacaoVisivel[minhaPosicaoVisivel]
+  : null
 
 const meusDados = minhaPosicao >= 0
   ? classificacao[minhaPosicao]
@@ -19,6 +39,79 @@ const meusDados = minhaPosicao >= 0
 
   const [aCarregar, setACarregar] = useState(true)
   const [erro, setErro] = useState('')
+
+useEffect(() => {
+  if (tipoClassificacao !== 'jornada' || !jornadaSelecionada) {
+    return
+  }
+
+  let ativo = true
+
+  async function carregarClassificacaoJornada() {
+    setACarregarJornada(true)
+    setErroJornada('')
+
+    const { data, error } = await supabase.rpc(
+      'obter_classificacao_jornada',
+      {
+        p_competition_id: COMPETICAO_ID,
+        p_jornada_id: jornadaSelecionada
+      }
+    )
+
+    if (!ativo) return
+
+    if (error) {
+      setErroJornada(error.message)
+      setClassificacaoJornada([])
+    } else {
+      setClassificacaoJornada(data || [])
+    }
+
+    setACarregarJornada(false)
+  }
+
+  carregarClassificacaoJornada()
+
+  return () => {
+    ativo = false
+  }
+}, [tipoClassificacao, jornadaSelecionada])
+
+useEffect(() => {
+  async function carregarJornadas() {
+    const { data: epoca, error: erroEpoca } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('competition_id', COMPETICAO_ID)
+      .eq('status', 'active')
+      .single()
+
+    if (erroEpoca || !epoca) {
+      setErroJornada('Não foi possível encontrar a época ativa.')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('jornadas')
+      .select('id, numero, nome')
+      .eq('season_id', epoca.id)
+      .order('numero', { ascending: true })
+
+    if (error) {
+      setErroJornada(error.message)
+      return
+    }
+
+    setJornadas(data || [])
+
+    if (data?.length > 0) {
+      setJornadaSelecionada(data[0].id)
+    }
+  }
+
+  carregarJornadas()
+}, [])
 
   useEffect(() => {
     async function carregarClassificacao() {
@@ -55,21 +148,120 @@ setUtilizadorAtual(user?.id ?? null)
         🏆 Classificação Predict League
       </h1>
 
-      {aCarregar && <p>A carregar classificação...</p>}
+<div style={{
+  display: 'flex',
+  gap: '10px',
+  marginTop: '20px',
+  marginBottom: '25px',
+  flexWrap: 'wrap'
+}}>
+  <button
+    type="button"
+    onClick={() => setTipoClassificacao('geral')}
+    style={{
+      padding: '12px 20px',
+      background: tipoClassificacao === 'geral' ? '#c9a84c' : '#172235',
+      color: tipoClassificacao === 'geral' ? '#0b1220' : 'white',
+      border: 'none',
+      borderRadius: '10px',
+      fontWeight: 'bold',
+      cursor: 'pointer'
+    }}
+  >
+    🏆 Geral
+  </button>
 
-      {erro && (
-        <p style={{ color: '#f87171' }}>
-          Erro: {erro}
-        </p>
+  <button
+    type="button"
+    onClick={() => setTipoClassificacao('jornada')}
+    style={{
+      padding: '12px 20px',
+      background: tipoClassificacao === 'jornada' ? '#c9a84c' : '#172235',
+      color: tipoClassificacao === 'jornada' ? '#0b1220' : 'white',
+      border: 'none',
+      borderRadius: '10px',
+      fontWeight: 'bold',
+      cursor: 'pointer'
+    }}
+  >
+    📅 Por jornada
+  </button>
+</div>
+
+{tipoClassificacao === 'jornada' && (
+  <div style={{ marginBottom: '25px' }}>
+    <label
+      htmlFor="selecionar-jornada"
+      style={{
+        display: 'block',
+        marginBottom: '10px',
+        color: '#c9a84c',
+        fontWeight: 'bold'
+      }}
+    >
+      📅 Escolher jornada
+    </label>
+
+    <select
+      id="selecionar-jornada"
+      value={jornadaSelecionada}
+      onChange={(e) => setJornadaSelecionada(e.target.value)}
+      style={{
+        width: '100%',
+        maxWidth: '350px',
+        padding: '12px',
+        background: '#172235',
+        color: 'white',
+        border: '1px solid #c9a84c',
+        borderRadius: '10px',
+        fontSize: '15px'
+      }}
+    >
+      {jornadas.length === 0 && (
+        <option value="">Sem jornadas disponíveis</option>
       )}
 
-      {!aCarregar && !erro && (
+      {jornadas.map((jornada) => (
+        <option key={jornada.id} value={jornada.id}>
+          {jornada.nome || `Jornada ${jornada.numero}`}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
+
+     
+{tipoClassificacao === 'geral' && aCarregar && (
+  <p>A carregar classificação geral...</p>
+)}
+
+{tipoClassificacao === 'jornada' && aCarregarJornada && (
+  <p>A carregar classificação da jornada...</p>
+)}
+
+{tipoClassificacao === 'geral' && erro && (
+  <p style={{ color: '#f87171' }}>
+    Erro: {erro}
+  </p>
+)}
+
+{tipoClassificacao === 'jornada' && erroJornada && (
+  <p style={{ color: '#f87171' }}>
+    Erro: {erroJornada}
+  </p>
+)}
+
+      
+{!(tipoClassificacao === 'geral' ? aCarregar : aCarregarJornada) &&
+ !(tipoClassificacao === 'geral' ? erro : erroJornada) &&
+ (tipoClassificacao === 'geral' || jornadaSelecionada) && (
+
         <>
           <p>
-            Jogadores inscritos: {classificacao.length}
+Jogadores inscritos: {classificacaoVisivel.length}
           </p>
 
-{meusDados && (
+{meusDadosVisiveis && (
   <div style={{
     background: '#172235',
     border: '1px solid #3b82f6',
@@ -82,13 +274,14 @@ setUtilizadorAtual(user?.id ?? null)
       👤 A minha classificação
     </h3>
 
-    <p>🏆 Posição: {minhaPosicao + 1}.º</p>
+<p>🏆 Posição: {minhaPosicaoVisivel + 1}.º</p>
 
-    <p>⭐ Pontos: {meusDados.pontos}</p>
+<p>⭐ Pontos: {meusDadosVisiveis.pontos}</p>
 
-    <p>🎯 Resultados exatos: {meusDados.resultados_exatos}</p>
+<p>🎯 Resultados exatos: {meusDadosVisiveis.resultados_exatos}</p>
 
-    <p>⚽ Jogos pontuados: {meusDados.jogos_pontuados}</p>
+<p>⚽ Jogos pontuados: {meusDadosVisiveis.jogos_pontuados}</p>
+
   </div>
 )}
 
@@ -115,7 +308,7 @@ setUtilizadorAtual(user?.id ?? null)
               </thead>
 
               <tbody>
-                {classificacao.map((jogador, indice) => (
+                {classificacaoVisivel.map((jogador, indice) => (
                  
 <tr
   key={jogador.user_id}
