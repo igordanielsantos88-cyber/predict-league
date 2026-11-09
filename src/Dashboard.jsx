@@ -7,7 +7,7 @@ import Jornadas from './Jornadas'
 import HallDaFama from './HallDaFama'
 
 import Estatisticas from './Estatisticas'
-
+import Chat from './Chat'
 function Dashboard() {
   const [pagina, setPagina] = useState('inicio')
 
@@ -93,6 +93,34 @@ if (pagina === 'prognosticos') {
       </button>
 
       <JogosParticipante />
+    </div>
+  )
+}
+
+if (pagina === 'chat') {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#0b1220',
+      color: 'white',
+      padding: '25px'
+    }}>
+      <button
+        type="button"
+        onClick={() => setPagina('inicio')}
+        style={{
+          background: '#172235',
+          color: 'white',
+          padding: '12px 18px',
+          border: '1px solid #29384d',
+          borderRadius: '8px',
+          cursor: 'pointer'
+        }}
+      >
+        ← Voltar ao Dashboard
+      </button>
+
+      <Chat />
     </div>
   )
 }
@@ -237,6 +265,14 @@ color: '#111118',
 >
   <h3>📊 Estatísticas</h3>
   <p>Acompanha o teu desempenho</p>
+</div>
+
+<div
+  style={{ ...cartao, cursor: 'pointer' }}
+  onClick={() => setPagina('chat')}
+>
+  <h3>💬 Chat</h3>
+  <p>Conversa com os participantes e comenta os jogos</p>
 </div>
 
 
