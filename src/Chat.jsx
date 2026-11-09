@@ -1,9 +1,85 @@
 
-import { useState } from 'react'
+
+import { useEffect, useState } from 'react'
+import { supabase } from './supabase'
+
 
 function Chat() {
   const [tipoChat, setTipoChat] = useState('geral')
   const [mensagem, setMensagem] = useState('')
+
+const [mensagens, setMensagens] = useState([])
+const [aCarregar, setACarregar] = useState(false)
+const [erro, setErro] = useState('')
+
+const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+
+const [aEnviar, setAEnviar] = useState(false)
+
+async function enviarMensagem() {
+  const texto = mensagem.trim()
+
+  if (!texto || aEnviar || tipoChat !== 'geral') return
+
+  if (texto.length > 1000) {
+    alert('A mensagem não pode ultrapassar 1000 caracteres.')
+    return
+  }
+
+  setAEnviar(true)
+  setErro('')
+
+  try {
+    const { error } = await supabase.rpc(
+      'enviar_mensagem_chat',
+      {
+        p_competition_id: COMPETICAO_ID,
+        p_mensagem: texto,
+        p_match_id: null
+      }
+    )
+
+    if (error) {
+      setErro('Não foi possível enviar: ' + error.message)
+      return
+    }
+
+    setMensagem('')
+    await carregarMensagens()
+  } catch {
+    setErro('Ocorreu um erro ao enviar a mensagem.')
+  } finally {
+    setAEnviar(false)
+  }
+}
+
+async function carregarMensagens(matchId = null) {
+  setACarregar(true)
+  setErro('')
+
+  const { data, error } = await supabase.rpc(
+    'obter_mensagens_chat',
+    {
+      p_competition_id: COMPETICAO_ID,
+      p_match_id: matchId
+    }
+  )
+
+  if (error) {
+    setErro(error.message)
+    setMensagens([])
+  } else {
+    setMensagens(data || [])
+  }
+
+  setACarregar(false)
+}
+
+useEffect(() => {
+  if (tipoChat === 'geral') {
+    carregarMensagens()
+  }
+}, [tipoChat])
 
   return (
     <div style={{
@@ -79,11 +155,70 @@ function Chat() {
           borderRadius: '10px',
           marginBottom: '20px'
         }}>
-          <p style={{ color: '#94a3b8' }}>
-            {tipoChat === 'geral'
-              ? 'As mensagens dos participantes vão aparecer aqui.'
-              : 'Aqui poderás escolher um jogo e conversar sobre ele.'}
-          </p>
+         
+{tipoChat === 'geral' ? (
+  <>
+    {aCarregar && (
+      <p style={{ color: '#94a3b8' }}>
+        A carregar mensagens...
+      </p>
+    )}
+
+    {erro && (
+      <p style={{ color: '#f87171' }}>
+        Erro: {erro}
+      </p>
+    )}
+
+    {!aCarregar && !erro && mensagens.length === 0 && (
+      <p style={{ color: '#94a3b8' }}>
+        Ainda não existem mensagens. Sê o primeiro a escrever!
+      </p>
+    )}
+
+    {!aCarregar && !erro && mensagens.map((msg) => (
+      <div
+        key={msg.id}
+        style={{
+          padding: '12px',
+          marginBottom: '10px',
+          background: '#172235',
+          borderRadius: '10px',
+          border: '1px solid #29384d'
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '10px',
+          flexWrap: 'wrap',
+          marginBottom: '8px'
+        }}>
+          <strong style={{ color: '#c9a84c' }}>
+            👤 {msg.jogador}
+          </strong>
+
+          <small style={{ color: '#94a3b8' }}>
+            {new Date(msg.criada_em).toLocaleString('pt-PT')}
+          </small>
+        </div>
+
+        <p style={{
+          margin: 0,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere'
+        }}>
+          {msg.mensagem}
+        </p>
+      </div>
+    ))}
+  </>
+) : (
+  <p style={{ color: '#94a3b8' }}>
+    Aqui poderás escolher um jogo e conversar sobre ele.
+  </p>
+)}
+
         </div>
 
         {tipoChat === 'geral' && (
@@ -108,21 +243,25 @@ function Chat() {
               }}
             />
 
-            <button
-              type="button"
-              disabled
-              style={{
-                padding: '12px 20px',
-                background: '#c9a84c',
-                color: '#0b1220',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                opacity: 0.5
-              }}
-            >
-              📤 Enviar
-            </button>
+            
+<button
+  type="button"
+  onClick={enviarMensagem}
+  disabled={aEnviar || !mensagem.trim()}
+  style={{
+    padding: '12px 20px',
+    background: '#c9a84c',
+    color: '#0b1220',
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    cursor: aEnviar ? 'wait' : 'pointer',
+    opacity: aEnviar || !mensagem.trim() ? 0.5 : 1
+  }}
+>
+  {aEnviar ? '⏳ A enviar...' : '📤 Enviar'}
+</button>
+
           </div>
         )}
       </div>
