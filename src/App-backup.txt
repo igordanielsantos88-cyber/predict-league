@@ -1,0 +1,154 @@
+
+import { useEffect, useState } from 'react'
+import { supabase } from './supabase'
+
+function App() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [mensagem, setMensagem] = useState('')
+  const [aEntrar, setAEntrar] = useState(false)
+
+  useEffect(() => {
+    async function verificarSessao() {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data: perfil, error } = await supabase
+        .from('profiles')
+        .select('role, approval_status')
+        .eq('id', user.id)
+        .single()
+
+      if (
+        !error &&
+        perfil?.role === 'admin' &&
+        perfil?.approval_status === 'approved'
+      ) {
+        setMensagem('Administrador confirmado! ⚽')
+      }
+    }
+
+    verificarSessao()
+  }, [])
+
+  async function entrar(evento) {
+    evento.preventDefault()
+    setMensagem('')
+    setAEntrar(true)
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setMensagem('Não foi possível entrar. Confirma os teus dados.')
+   
+} else {
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: perfil, error: erroPerfil } = await supabase
+    .from('profiles')
+    .select('role, approval_status')
+    .eq('id', user.id)
+    .single()
+
+  if (erroPerfil) {
+    setMensagem('Erro ao consultar o perfil: ' + erroPerfil.message)
+  } else if (
+    perfil.role === 'admin' &&
+    perfil.approval_status === 'approved'
+  ) {
+    setMensagem('Administrador confirmado! ⚽')
+  } else {
+    setMensagem('Conta autenticada, mas sem acesso de administrador.')
+  }
+}
+
+
+    setAEntrar(false)
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#0b1220',
+      color: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'Arial, sans-serif',
+      padding: '20px'
+    }}>
+      <form onSubmit={entrar} style={{
+        background: '#172235',
+        padding: '35px',
+        borderRadius: '16px',
+        width: '100%',
+        maxWidth: '360px',
+        boxSizing: 'border-box'
+      }}>
+        <h1 style={{ color: '#22c55e', textAlign: 'center' }}>
+          ⚽ Predict League
+        </h1>
+
+        <p style={{ textAlign: 'center' }}>
+          Iniciar sessão
+        </p>
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{
+            width: '100%',
+            padding: '12px',
+            marginBottom: '12px',
+            boxSizing: 'border-box'
+          }}
+        />
+
+        <input
+          type="password"
+          placeholder="Palavra-passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{
+            width: '100%',
+            padding: '12px',
+            marginBottom: '15px',
+            boxSizing: 'border-box'
+          }}
+        />
+
+        <button
+          type="submit"
+          disabled={aEntrar}
+          style={{
+            width: '100%',
+            padding: '13px',
+            background: '#22c55e',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          {aEntrar ? 'A entrar...' : 'Entrar'}
+        </button>
+
+        {mensagem && (
+          <p style={{ textAlign: 'center', marginTop: '18px' }}>
+            {mensagem}
+          </p>
+        )}
+      </form>
+    </div>
+  )
+}
+
+export default App
