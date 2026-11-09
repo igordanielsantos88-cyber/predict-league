@@ -18,6 +18,42 @@ const [filtroJogos, setFiltroJogos] = useState('todos')
 
 const [aGuardar, setAGuardar] = useState(null)
 
+const [prognosticosOutros, setPrognosticosOutros] = useState({})
+const [jogoAberto, setJogoAberto] = useState(null)
+const [aCarregarPrognosticos, setACarregarPrognosticos] = useState(null)
+
+async function verPrognosticos(jogo) {
+  if (jogoAberto === jogo.id) {
+    setJogoAberto(null)
+    return
+  }
+
+  if (new Date(jogo.kickoff).getTime() > Date.now()) {
+    alert('Os prognósticos só ficam visíveis após o início do jogo.')
+    return
+  }
+
+  setJogoAberto(jogo.id)
+  setACarregarPrognosticos(jogo.id)
+
+  const { data, error } = await supabase.rpc(
+    'ver_prognosticos_jogo',
+    { p_match_id: jogo.id }
+  )
+
+  if (error) {
+    alert('Erro ao carregar prognósticos: ' + error.message)
+    setJogoAberto(null)
+  } else {
+    setPrognosticosOutros(anteriores => ({
+      ...anteriores,
+      [jogo.id]: data || []
+    }))
+  }
+
+  setACarregarPrognosticos(null)
+}
+
 async function guardarPalpite(jogo) {
   const palpite = palpites[jogo.id]
 
@@ -426,11 +462,70 @@ const jogosPorJornada = jornadas
 </button>
 
   </div>
+
 ) : (
-  <p style={{ color: '#94a3b8' }}>
-    🔒 Prognósticos encerrados — o jogo já começou.
-  </p>
+  <div style={{ marginTop: '15px' }}>
+    <p style={{ color: '#94a3b8' }}>
+      🔒 Prognósticos encerrados — o jogo já começou.
+    </p>
+
+    <button
+      type="button"
+      onClick={() => verPrognosticos(jogo)}
+      disabled={aCarregarPrognosticos === jogo.id}
+      style={{
+        padding: '10px 16px',
+        background: '#c9a84c',
+        color: '#111118',
+        border: 'none',
+        borderRadius: '8px',
+        fontWeight: 'bold',
+        cursor: 'pointer'
+      }}
+    >
+      {aCarregarPrognosticos === jogo.id
+        ? 'A carregar...'
+        : jogoAberto === jogo.id
+          ? '✖ Fechar prognósticos'
+          : '👥 Ver prognósticos'}
+    </button>
+
+    {jogoAberto === jogo.id &&
+      aCarregarPrognosticos !== jogo.id && (
+        <div style={{
+          marginTop: '15px',
+          padding: '15px',
+          background: '#0f172a',
+          border: '1px solid #8b733a',
+          borderRadius: '10px'
+        }}>
+          {(prognosticosOutros[jogo.id] || []).length === 0 ? (
+            <p>Não existem prognósticos para este jogo.</p>
+          ) : (
+            prognosticosOutros[jogo.id].map((p, indice) => (
+              <div
+                key={indice}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  padding: '10px 0',
+                  borderBottom: '1px solid #29384d'
+                }}
+              >
+                <span>{p.jogador}</span>
+                <strong>
+                  {p.golos_casa}–{p.golos_fora}
+                  {p.pontos !== null && ` · ${p.pontos} pts`}
+                </strong>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+  </div>
 )}
+
          
           </div>
         ))}
