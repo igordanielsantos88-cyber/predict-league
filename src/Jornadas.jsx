@@ -288,8 +288,7 @@ const estilos = `
     }
   }
 `
-
-export default function Jornadas() {
+export default function Jornadas({ competicaoId }) {
   const [epoca, setEpoca] = useState(null)
   const [jornadas, setJornadas] = useState([])
   const [jogos, setJogos] = useState([])
@@ -334,10 +333,10 @@ export default function Jornadas() {
     async function iniciar() {
       try {
         const { data, error } = await supabase
-          .from('seasons')
-          .select('id, name, competition_id, competitions!inner(name)')
-          .eq('status', 'active')
-          .eq('competitions.name', 'Predict League')
+  .from('seasons')
+  .select('id, name, competition_id')
+  .eq('competition_id', competicaoId)
+  .eq('status', 'active')
 
         if (error) throw error
         if (!ativo) return

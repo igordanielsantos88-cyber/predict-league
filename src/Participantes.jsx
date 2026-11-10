@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
@@ -237,11 +236,12 @@ const estilos = `
   }
 `
 
-function Participantes() {
+function Participantes({ competicaoId }) {
   const [participantes, setParticipantes] = useState([])
   const [aCarregar, setACarregar] = useState(true)
   const [aAprovar, setAAprovar] = useState(null)
   const [erro, setErro] = useState('')
+  const [inscritos, setInscritos] = useState([])
 
   async function carregarParticipantes() {
     setACarregar(true)
@@ -258,6 +258,30 @@ function Participantes() {
 
       if (error) throw error
 
+      // Os pedidos pendentes são globais; as inscrições pertencem a uma competição.
+      let idCompeticao = competicaoId
+      if (!idCompeticao) {
+        const { data: ativa, error: erroAtiva } = await supabase
+          .from('competitions')
+          .select('id')
+          .eq('active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (erroAtiva) throw erroAtiva
+        idCompeticao = ativa?.id
+      }
+
+      if (!idCompeticao) {
+        setInscritos([])
+      } else {
+        const { data: membros, error: erroMembros } = await supabase
+          .from('competition_members')
+          .select('user_id')
+          .eq('competition_id', idCompeticao)
+        if (erroMembros) throw erroMembros
+        setInscritos((membros || []).map(m => m.user_id))
+      }
       setParticipantes(data || [])
     } catch (e) {
       setErro('Erro ao carregar participantes: ' + e.message)
@@ -268,7 +292,7 @@ function Participantes() {
 
   useEffect(() => {
     carregarParticipantes()
-  }, [])
+  }, [competicaoId])
 
   async function aprovarParticipante(id) {
     if (!window.confirm('Queres aprovar este participante?')) {
@@ -285,7 +309,7 @@ function Participantes() {
 
       if (error) throw error
 
-      alert('Participante aprovado e inscrito na Predict League! 🏆')
+      alert('Participante aprovado e inscrito na competição ativa! 🏆')
 
       await carregarParticipantes()
     } catch (e) {
@@ -300,7 +324,7 @@ function Participantes() {
   )
 
   const aprovados = participantes.filter(
-    p => p.approval_status === 'approved'
+    p => p.approval_status === 'approved' && inscritos.includes(p.id)
   )
 
   function cartaoParticipante(p, pendente) {
@@ -369,15 +393,15 @@ function Participantes() {
       </h2>
 
       <p className="pl-participantes-subtitulo">
-        Consulta os jogadores inscritos na Predict League
+        Consulta os jogadores inscritos na competição ativa
         e aprova os novos pedidos de participação.
       </p>
 
       {!aCarregar && !erro && (
         <div className="pl-participantes-resumo">
           <div className="pl-participantes-resumo-card">
-            <strong>{participantes.length}</strong>
-            <span>Total de participantes</span>
+            <strong>{aprovados.length + pendentes.length}</strong>
+            <span>Inscritos e pedidos pendentes</span>
           </div>
 
           <div className="pl-participantes-resumo-card">

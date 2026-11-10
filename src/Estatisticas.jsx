@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+const COMPETICAO_ID_PREDEFINIDA = '549b62f6-1f54-48db-b002-adb0e4754642'
 
 const estilos = `
   .pl-estatisticas {
@@ -218,7 +218,7 @@ const estilos = `
   }
 `
 
-function Estatisticas() {
+function Estatisticas({ competicaoId = COMPETICAO_ID_PREDEFINIDA }) {
   const [estatisticas, setEstatisticas] = useState(null)
   const [posicao, setPosicao] = useState(null)
   const [pontosLider, setPontosLider] = useState(null)
@@ -227,6 +227,12 @@ function Estatisticas() {
   const [erro, setErro] = useState('')
 
   useEffect(() => {
+    setACarregar(true)
+    setErro('')
+    setEstatisticas(null)
+    setPosicao(null)
+    setPontosLider(null)
+    setTaxaAcerto(null)
     let ativo = true
 
     async function carregarEstatisticas() {
@@ -246,10 +252,10 @@ function Estatisticas() {
 
         const [resultadoLiga, resultadoTaxa] = await Promise.all([
           supabase.rpc('obter_classificacao', {
-            p_competition_id: COMPETICAO_ID
+            p_competition_id: competicaoId
           }),
           supabase.rpc('obter_taxa_acerto', {
-            p_competition_id: COMPETICAO_ID
+            p_competition_id: competicaoId
           })
         ])
 
@@ -307,7 +313,7 @@ function Estatisticas() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
   const pontos = Number(estatisticas?.pontos || 0)
   const exatos = Number(estatisticas?.resultados_exatos || 0)

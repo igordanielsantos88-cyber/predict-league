@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+const COMPETICAO_ID_PADRAO = '549b62f6-1f54-48db-b002-adb0e4754642'
 
 const estilos = `
   .pl-hall {
@@ -253,7 +253,7 @@ const estilos = `
   }
 `
 
-export default function HallDaFama() {
+export default function HallDaFama({ competicaoId = COMPETICAO_ID_PADRAO }) {
   const [epocas, setEpocas] = useState([])
   const [epocaId, setEpocaId] = useState('')
   const [classificacao, setClassificacao] = useState([])
@@ -265,11 +265,18 @@ export default function HallDaFama() {
   useEffect(() => {
     let ativo = true
 
+    setACarregarEpocas(true)
+    setErroEpocas('')
+    setErroClassificacao('')
+    setEpocas([])
+    setEpocaId('')
+    setClassificacao([])
+
     async function carregarEpocas() {
       const { data, error } = await supabase
         .from('seasons')
         .select('id, name, status')
-        .eq('competition_id', COMPETICAO_ID)
+        .eq('competition_id', competicaoId)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
 
@@ -290,9 +297,8 @@ export default function HallDaFama() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
-  
   useEffect(() => {
     if (!epocaId) {
       setClassificacao([])

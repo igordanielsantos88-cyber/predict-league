@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
 
 const estilos = `
   .pl-liga {
@@ -259,7 +258,7 @@ function calcularPrecisao(jogador) {
   return ((exatos / jogos) * 100).toFixed(1) + '%'
 }
 
-function Liga() {
+function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
   const [classificacao, setClassificacao] = useState([])
   const [tipoClassificacao, setTipoClassificacao] = useState('geral')
   const [jornadas, setJornadas] = useState([])
@@ -278,7 +277,7 @@ function Liga() {
       const { data: epoca, error: erroEpoca } = await supabase
         .from('seasons')
         .select('id')
-        .eq('competition_id', COMPETICAO_ID)
+        .eq('competition_id', competicaoId)
         .eq('status', 'active')
         .single()
 
@@ -314,7 +313,7 @@ function Liga() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
   useEffect(() => {
     let ativo = true
@@ -329,7 +328,7 @@ function Liga() {
 
         const { data, error } = await supabase.rpc(
           'obter_classificacao',
-          { p_competition_id: COMPETICAO_ID }
+          { p_competition_id: competicaoId }
         )
 
         if (!ativo) return
@@ -353,7 +352,7 @@ function Liga() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
   useEffect(() => {
     if (tipoClassificacao !== 'jornada' || !jornadaSelecionada) {
@@ -370,7 +369,7 @@ function Liga() {
         const { data, error } = await supabase.rpc(
           'obter_classificacao_jornada',
           {
-            p_competition_id: COMPETICAO_ID,
+            p_competition_id: competicaoId,
             p_jornada_id: jornadaSelecionada,
           }
         )
@@ -399,7 +398,7 @@ function Liga() {
     return () => {
       ativo = false
     }
-  }, [tipoClassificacao, jornadaSelecionada])
+  }, [tipoClassificacao, jornadaSelecionada, competicaoId])
 
   const classificacaoVisivel =
     tipoClassificacao === 'geral'

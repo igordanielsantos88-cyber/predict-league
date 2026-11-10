@@ -7,10 +7,10 @@ import Jornadas from './Jornadas'
 import HallDaFama from './HallDaFama'
 import Estatisticas from './Estatisticas'
 import Chat from './Chat'
-
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+import GerirCompeticoes from './GerirCompeticoes'
 
 const secoes = [
+  { id: 'competicoes', icone: '🏆', nome: 'Gerir Competições', descricao: 'Cria e gere as competições' },
   { id: 'prognosticos', icone: '🎯', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
   { id: 'liga', icone: '🏆', nome: 'Classificação', descricao: 'Acompanha a tabela da competição' },
   { id: 'jornadas', icone: '📅', nome: 'Jornadas', descricao: 'Gere as jornadas e os jogos' },
@@ -66,12 +66,44 @@ const estilos = `
 
 function Dashboard() {
   const [pagina, setPagina] = useState('inicio')
+  const [competicaoId, setCompeticaoId] = useState(null)
+  const [erroCompeticao, setErroCompeticao] = useState('')
+  const [aCarregarCompeticao, setACarregarCompeticao] = useState(true)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximo: null, porFazer: null, totalJogos: 0 })
   const [aCarregarResumo, setACarregarResumo] = useState(true)
   const [erroResumo, setErroResumo] = useState('')
   const [atualizacao, setAtualizacao] = useState(0)
 
+  useEffect(() => {
+    let ativo = true
+
+    async function carregarCompeticaoAtiva() {
+      const { data, error } = await supabase
+        .from('competitions')
+        .select('id')
+        .eq('active', true)
+        .limit(2)
+
+      if (!ativo) return
+      if (error) {
+        setErroCompeticao(error.message)
+      } else if (!data?.length) {
+        setErroCompeticao('Não foi encontrada uma competição ativa acessível.')
+      } else if (data.length > 1) {
+        setErroCompeticao('Existem várias competições ativas. É necessário escolher uma antes de continuar.')
+      } else {
+        setCompeticaoId(data[0].id)
+        setErroCompeticao('')
+      }
+      setACarregarCompeticao(false)
+    }
+
+    carregarCompeticaoAtiva()
+    return () => { ativo = false }
+  }, [])
+
   const carregarResumo = useCallback(async (signal) => {
+    if (!competicaoId) return
     setACarregarResumo(true)
     setErroResumo('')
     try {
@@ -79,8 +111,8 @@ function Dashboard() {
       if (erroUser || !user) throw new Error('Não foi possível identificar o utilizador.')
 
       const [resultadoClassificacao, resultadoEpoca] = await Promise.all([
-        supabase.rpc('obter_classificacao', { p_competition_id: COMPETICAO_ID }),
-        supabase.from('seasons').select('id').eq('competition_id', COMPETICAO_ID).eq('status', 'active').maybeSingle(),
+        supabase.rpc('obter_classificacao', { p_competition_id: competicaoId }),
+        supabase.from('seasons').select('id').eq('competition_id', competicaoId).eq('status', 'active').maybeSingle(),
       ])
       if (resultadoClassificacao.error) throw resultadoClassificacao.error
       if (resultadoEpoca.error) throw resultadoEpoca.error
@@ -97,7 +129,7 @@ function Dashboard() {
         const { data: jogos, error: erroJogos } = await supabase
           .from('matches')
           .select('id,home_team,away_team,kickoff,status')
-          .eq('competition_id', COMPETICAO_ID)
+          .eq('competition_id', competicaoId)
           .eq('season_id', resultadoEpoca.data.id)
           .gt('kickoff', new Date().toISOString())
           .order('kickoff', { ascending: true })
@@ -136,22 +168,23 @@ function Dashboard() {
     } finally {
       if (!signal.aborted) setACarregarResumo(false)
     }
-  }, [])
+  }, [competicaoId])
 
   useEffect(() => {
-    if (pagina !== 'inicio') return
+    if (pagina !== 'inicio' || !competicaoId) return
     const controller = new AbortController()
     carregarResumo(controller.signal)
     return () => controller.abort()
   }, [pagina, atualizacao, carregarResumo])
 
   const componentes = {
-    prognosticos: <JogosParticipante />,
-    liga: <Liga />,
-    jornadas: <Jornadas />,
-    participantes: <Participantes />,
-    estatisticas: <Estatisticas />,
-    'hall-da-fama': <HallDaFama />,
+    competicoes: <GerirCompeticoes />,
+    prognosticos: <JogosParticipante competicaoId={competicaoId} />,
+    liga: <Liga competicaoId={competicaoId} />,
+    jornadas: <Jornadas competicaoId={competicaoId} />,
+    participantes: <Participantes competicaoId={competicaoId} />,
+    estatisticas: <Estatisticas competicaoId={competicaoId} />,
+    'hall-da-fama': <HallDaFama competicaoId={competicaoId} />,
     chat: <Chat />,
      }
   const secaoAtual = secoes.find(s => s.id === pagina)
@@ -181,6 +214,9 @@ function Dashboard() {
         )}
       </header>
 
+      {erroCompeticao && <p className="pl-info pl-info-error" role="alert">{erroCompeticao}</p>}
+      {aCarregarCompeticao && <p className="pl-info">A identificar a competição ativa...</p>}
+
       {pagina === 'inicio' ? (
         <>
           <section className="pl-hero">
@@ -188,13 +224,13 @@ function Dashboard() {
               <span className="pl-eyebrow">A competição começa aqui</span>
               <h2>🏆 A tua competição</h2>
               <p>Faz os teus prognósticos, acompanha a classificação e disputa o primeiro lugar com os restantes participantes.</p>
-              <button type="button" className="pl-gold-button" onClick={() => setPagina('prognosticos')}>🎯 Fazer prognósticos</button>
+              <button type="button" className="pl-gold-button" onClick={() => setPagina('prognosticos')} disabled={!competicaoId}>🎯 Fazer prognósticos</button>
             </div>
           </section>
 
           <div className="pl-section-heading">
             <h2 className="pl-section-title">O meu resumo</h2>
-            <button type="button" className="pl-refresh" disabled={aCarregarResumo} onClick={() => setAtualizacao(n => n + 1)}>↻ Atualizar</button>
+            <button type="button" className="pl-refresh" disabled={aCarregarResumo || !competicaoId} onClick={() => setAtualizacao(n => n + 1)}>↻ Atualizar</button>
           </div>
           {erroResumo && <p className="pl-info pl-info-error" role="alert">Não foi possível atualizar os indicadores: {erroResumo}</p>}
           <div className="pl-stats" aria-busy={aCarregarResumo}>
@@ -202,8 +238,8 @@ function Dashboard() {
               <div className="pl-stat" key={indicador.titulo}>
                 <span className="pl-stat-icon" aria-hidden="true">{indicador.icone}</span>
                 <span className="pl-stat-label">{indicador.titulo}</span>
-                <strong className="pl-stat-value">{aCarregarResumo ? '…' : erroResumo ? '—' : indicador.valor}</strong>
-                <span className="pl-stat-detail">{aCarregarResumo ? 'A carregar...' : erroResumo ? 'Tenta atualizar' : indicador.detalhe}</span>
+                <strong className="pl-stat-value">{aCarregarCompeticao || aCarregarResumo ? '…' : erroResumo || erroCompeticao ? '—' : indicador.valor}</strong>
+                <span className="pl-stat-detail">{aCarregarCompeticao || aCarregarResumo ? 'A carregar...' : erroResumo || erroCompeticao ? 'Verifica a competição ativa' : indicador.detalhe}</span>
               </div>
             ))}
           </div>
@@ -211,7 +247,7 @@ function Dashboard() {
           <div className="pl-section-heading"><h2 className="pl-section-title">Explorar a competição</h2></div>
           <div className="pl-grid">
             {secoes.map(secao => (
-              <button type="button" key={secao.id} className="pl-card" onClick={() => setPagina(secao.id)}>
+              <button type="button" key={secao.id} className="pl-card" onClick={() => setPagina(secao.id)} disabled={!competicaoId && secao.id !== 'competicoes'}>
                 <span className="pl-card-icon" aria-hidden="true">{secao.icone}</span>
                 <h3>{secao.nome}</h3>
                 <p>{secao.descricao}</p>
@@ -224,7 +260,7 @@ function Dashboard() {
           <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
             {secaoAtual?.icone} {secaoAtual?.nome}
           </h2>
-          {componentes[pagina]}
+          {competicaoId || pagina === 'competicoes' ? componentes[pagina] : <p>A aguardar uma competição ativa.</p>}
         </main>
       )}
     </div>

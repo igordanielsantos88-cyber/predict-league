@@ -7,6 +7,7 @@ function Notificacoes() {
   const [aberto, setAberto] = useState(false)
   const [erro, setErro] = useState('')
   const [aMarcar, setAMarcar] = useState(null)
+  const [aCarregar, setACarregar] = useState(true)
 
   useEffect(() => {
     let ativo = true
@@ -18,8 +19,14 @@ function Notificacoes() {
 
       if (!ativo) return
 
+      setACarregar(false)
+
       if (error) {
-        setErro('Não foi possível carregar as notificações.')
+        console.error('Erro nas notificações:', error)
+        setErro(
+          'Não foi possível carregar as notificações: ' +
+          error.message
+        )
       } else {
         setErro('')
         setNotificacoes(data || [])
@@ -27,6 +34,7 @@ function Notificacoes() {
     }
 
     carregar()
+
     const intervalo = setInterval(carregar, 30000)
 
     return () => {
@@ -40,21 +48,25 @@ function Notificacoes() {
     setErro('')
 
     try {
-      const { error } = await supabase.rpc(
+      const { data, error } = await supabase.rpc(
         'marcar_notificacao_lida',
-        { p_notification_id: id }
+        { p_notificacao_id: id }
       )
 
       if (error) {
-        setErro('Não foi possível marcar a notificação como lida.')
-      } else {
+        console.error('Erro ao marcar como lida:', error)
+        setErro(error.message)
+      } else if (data === true) {
         setNotificacoes(anteriores =>
           anteriores.map(n =>
             n.id === id ? { ...n, lida: true } : n
           )
         )
+      } else {
+        setErro('Não foi possível atualizar esta notificação.')
       }
-    } catch {
+    } catch (error) {
+      console.error(error)
       setErro('Ocorreu um erro ao atualizar a notificação.')
     } finally {
       setAMarcar(null)
@@ -98,7 +110,7 @@ function Notificacoes() {
             borderRadius: '14px',
             padding: '18px',
             zIndex: 1000,
-            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.45)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.45)',
             color: '#f8fafc',
             textAlign: 'left',
             boxSizing: 'border-box',
@@ -112,17 +124,25 @@ function Notificacoes() {
             🔔 Notificações
           </h3>
 
+          {aCarregar && (
+            <p style={{ color: '#94a3b8' }}>
+              A carregar notificações...
+            </p>
+          )}
+
           {erro && (
             <p style={{ color: '#f87171' }}>
               {erro}
             </p>
           )}
 
-          {notificacoes.length === 0 && !erro && (
-            <p style={{ color: '#94a3b8' }}>
-              Não tens notificações.
-            </p>
-          )}
+          {!aCarregar &&
+            notificacoes.length === 0 &&
+            !erro && (
+              <p style={{ color: '#94a3b8' }}>
+                Não tens notificações.
+              </p>
+            )}
 
           {notificacoes.map(n => (
             <div
@@ -157,7 +177,8 @@ function Notificacoes() {
                   color: '#94a3b8',
                   marginTop: '8px',
                 }}>
-                  {new Date(n.criada_em).toLocaleString('pt-PT')}
+                  {new Date(n.criada_em)
+                    .toLocaleString('pt-PT')}
                 </small>
               )}
 
