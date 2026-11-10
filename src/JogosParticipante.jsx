@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+const COMPETICAO_ID = '3d0f0048-d5b9-418e-b5f5-57d19782fe92'
 
 const estilos = `
   .pl-jogos {
