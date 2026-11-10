@@ -6,6 +6,8 @@ import Jornadas from './Jornadas'
 
 import HallDaFama from './HallDaFama'
 
+import Notificacoes from './Notificacoes'
+
 import Estatisticas from './Estatisticas'
 import Chat from './Chat'
 function Dashboard() {
@@ -167,9 +169,20 @@ if (pagina === 'estatisticas') {
         margin: '0 auto'
       }}>
        
-<h1 style={{ color: '#c9a84c' }}>
-  ⚽ Predict League
-</h1>
+
+<div style={{
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '15px'
+}}>
+  <h1 style={{ color: '#c9a84c' }}>
+    ⚽ Predict League
+  </h1>
+
+  <Notificacoes />
+</div>
+
 
 
         <p style={{ color: '#94a3b8' }}>
