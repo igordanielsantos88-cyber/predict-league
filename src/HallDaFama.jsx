@@ -274,11 +274,10 @@ export default function HallDaFama({ competicaoId = COMPETICAO_ID_PADRAO }) {
 
     async function carregarEpocas() {
       const { data, error } = await supabase
-        .from('seasons')
-        .select('id, name, status')
-        .eq('competition_id', competicaoId)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
+  .from('seasons')
+  .select('id, name, status')
+  .eq('status', 'completed')
+  .order('created_at', { ascending: false })
 
       if (!ativo) return
 
