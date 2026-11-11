@@ -264,6 +264,7 @@ function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
   const [jornadas, setJornadas] = useState([])
   const [jornadaSelecionada, setJornadaSelecionada] = useState('')
   const [classificacaoJornada, setClassificacaoJornada] = useState([])
+  const [jogosDaJornada, setJogosDaJornada] = useState([])
   const [aCarregarJornada, setACarregarJornada] = useState(false)
   const [erroJornada, setErroJornada] = useState('')
   const [utilizadorAtual, setUtilizadorAtual] = useState(null)
@@ -399,7 +400,57 @@ function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
       ativo = false
     }
   }, [tipoClassificacao, jornadaSelecionada, competicaoId])
+useEffect(() => {
+  if (tipoClassificacao !== 'jornada' || !jornadaSelecionada) {
+    setJogosDaJornada([])
+    return
+  }
 
+  let ativo = true
+
+  async function carregarEstadoJornada() {
+    setJogosDaJornada([])
+
+    const { data, error } = await supabase
+      .from('matches')
+      .select('id, status')
+      .eq('competition_id', competicaoId)
+      .eq('jornada_id', jornadaSelecionada)
+
+    if (!ativo) return
+
+    if (error) {
+      console.error('Erro ao verificar jornada:', error.message)
+      return
+    }
+
+    setJogosDaJornada(data || [])
+  }
+
+  carregarEstadoJornada()
+
+  return () => {
+    ativo = false
+  }
+}, [tipoClassificacao, jornadaSelecionada, competicaoId])
+
+const jornadaTerminada =
+  jogosDaJornada.length > 0 &&
+  jogosDaJornada.every(jogo => jogo.status === 'finished')
+  const modoTesteCampeao = false
+
+const classificacaoTeste = [
+  { user_id: 'teste-1', jogador: 'Igor', pontos: 18 },
+  { user_id: 'teste-2', jogador: 'João', pontos: 18 },
+  { user_id: 'teste-3', jogador: 'Rui', pontos: 12 },
+]
+
+const lideresJornada = modoTesteCampeao
+  ? classificacaoTeste
+  : classificacaoJornada
+
+const jornadaConcluidaParaMostrar =
+  modoTesteCampeao ? true : jornadaTerminada
   const classificacaoVisivel =
     tipoClassificacao === 'geral'
       ? classificacao
@@ -423,13 +474,20 @@ function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
     tipoClassificacao === 'geral'
       ? erro
       : erroJornada
-
+console.log('TESTE CAMPEÃO:', {
+  tipoClassificacao,
+  jornadaSelecionada,
+  aCarregarAtual,
+  erroAtual,
+  lideresJornada,
+})
   return (
+    
     <div className="pl-liga">
       <style>{estilos}</style>
 
       <h2 className="pl-liga-titulo">
-        🏆 Classificação Predict League
+        🏆 Classificação Predict League — TESTE 123
       </h2>
 
       <p className="pl-liga-subtitulo">
@@ -540,7 +598,50 @@ function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
                 </div>
               </section>
             )}
+{tipoClassificacao === 'jornada' &&
+  lideresJornada.length > 0 &&
+  Number(lideresJornada[0].pontos) > 0 && (
+    <div className="pl-liga-meu-cartao">
+      <h3 className="pl-liga-meu-titulo">
+        {jornadaConcluidaParaMostrar
+  ? '🏆 Campeão da jornada'
+  : '🥇 Líderes provisórios'}
+      </h3>
 
+      {lideresJornada
+        .filter(
+          jogador =>
+            Number(jogador.pontos) ===
+            Number(lideresJornada[0].pontos)
+        )
+        .map(jogador => (
+          <div
+            key={jogador.user_id}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 0',
+              borderBottom: '1px solid #594821',
+            }}
+          >
+            <strong style={{ fontSize: '18px' }}>
+              🥇 {jogador.jogador}
+            </strong>
+
+            <strong
+              style={{
+                color: '#f0d477',
+                fontSize: '22px',
+              }}
+            >
+              {jogador.pontos} pts
+            </strong>
+          </div>
+        ))}
+    </div>
+  )}
             {classificacaoVisivel.length === 0 ? (
               <div className="pl-liga-vazio">
                 Ainda não existem jogadores nesta classificação.
