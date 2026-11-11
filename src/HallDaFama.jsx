@@ -284,8 +284,20 @@ export default function HallDaFama({ competicaoId = COMPETICAO_ID_PADRAO }) {
       if (error) {
         setErroEpocas(error.message)
       } else {
-        setEpocas(data || [])
-        setEpocaId(data?.[0]?.id || '')
+      const ordemEpocas = {
+  '1.ª Época': 1,
+  '2.ª Época': 2,
+  'Mundial 2026': 3
+}
+
+const epocasOrdenadas = [...(data || [])].sort(
+  (a, b) =>
+    (ordemEpocas[a.name] ?? 999) -
+    (ordemEpocas[b.name] ?? 999)
+)
+
+setEpocas(epocasOrdenadas)
+        setEpocaId(epocasOrdenadas[0]?.id || '')
       }
 
       setACarregarEpocas(false)
