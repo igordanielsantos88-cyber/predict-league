@@ -466,7 +466,67 @@ function JogosParticipante() {
       setAGuardar(null)
     }
   }
+async function guardarTodosPalpites(jogosDaJornada) {
+  const jogosValidos = jogosDaJornada.filter(jogo => {
+    const palpite = palpites[jogo.id]
 
+    if (new Date(jogo.kickoff).getTime() <= Date.now()) {
+      return false
+    }
+
+    if (!palpite || palpite.casa === '' || palpite.fora === '') {
+      return false
+    }
+
+    const casa = Number(palpite.casa)
+    const fora = Number(palpite.fora)
+
+    return (
+      Number.isInteger(casa) &&
+      Number.isInteger(fora) &&
+      casa >= 0 &&
+      fora >= 0
+    )
+  })
+
+  if (jogosValidos.length === 0) {
+    alert('Não existem prognósticos válidos para guardar.')
+    return
+  }
+
+  setAGuardar('todos')
+
+  try {
+    const { data: { user }, error: erroUtilizador } =
+      await supabase.auth.getUser()
+
+    if (erroUtilizador || !user) {
+      alert('Tens de iniciar sessão para guardar os prognósticos.')
+      return
+    }
+
+    const dados = jogosValidos.map(jogo => ({
+      match_id: jogo.id,
+      user_id: user.id,
+      home_goals: Number(palpites[jogo.id].casa),
+      away_goals: Number(palpites[jogo.id].fora),
+    }))
+
+    const { error } = await supabase
+      .from('predictions')
+      .upsert(dados, { onConflict: 'match_id,user_id' })
+
+    if (error) {
+      alert('Erro ao guardar: ' + error.message)
+    } else {
+      alert(`✅ ${dados.length} prognóstico(s) guardado(s)!`)
+    }
+  } catch {
+    alert('Ocorreu um erro ao guardar os prognósticos.')
+  } finally {
+    setAGuardar(null)
+  }
+}
   async function verPrognosticos(jogo) {
     if (jogoAberto === jogo.id) {
       setJogoAberto(null)
@@ -579,6 +639,18 @@ function JogosParticipante() {
             </summary>
 
             <div className="pl-jornada-conteudo">
+             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+  <button
+    type="button"
+    className="pl-jogo-botao"
+    onClick={() => guardarTodosPalpites(jornada.jogos)}
+    disabled={aGuardar !== null}
+  >
+    {aGuardar === 'todos'
+      ? '⏳ A guardar prognósticos...'
+      : '💾 Guardar todos os prognósticos'}
+  </button>
+</div> 
               {jornada.jogos.map(jogo => {
                 const comecou =
                   new Date(jogo.kickoff).getTime() <= Date.now()
