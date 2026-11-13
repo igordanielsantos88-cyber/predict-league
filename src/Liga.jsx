@@ -258,8 +258,8 @@ function calcularPrecisao(jogador) {
   return ((exatos / jogos) * 100).toFixed(1) + '%'
 }
 
-function Liga({ competicaoId = '3d0f0048-d5b9-418e-b5f5-57d19782fe92' }) {
-  console.log('LIGA - competicaoId:', competicaoId)
+function Liga({ competicaoId }) {
+
   const [classificacao, setClassificacao] = useState([])
   const [tipoClassificacao, setTipoClassificacao] = useState('geral')
   const [jornadas, setJornadas] = useState([])
@@ -475,20 +475,14 @@ const jornadaConcluidaParaMostrar =
     tipoClassificacao === 'geral'
       ? erro
       : erroJornada
-console.log('TESTE CAMPEÃO:', {
-  tipoClassificacao,
-  jornadaSelecionada,
-  aCarregarAtual,
-  erroAtual,
-  lideresJornada,
-})
+
   return (
     
     <div className="pl-liga">
       <style>{estilos}</style>
 
       <h2 className="pl-liga-titulo">
-        🏆 Classificação Predict League — TESTE 123
+  🏆 Classificação Predict League
       </h2>
 
       <p className="pl-liga-subtitulo">

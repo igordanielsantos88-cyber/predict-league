@@ -6,7 +6,7 @@ import HallDaFama from './HallDaFama'
 import Estatisticas from './Estatisticas'
 import Chat from './Chat'
 
-const COMPETICAO_ID = '549b62f6-1f54-48db-b002-adb0e4754642'
+
 
 const secoes = [
   { id: 'prognosticos', icone: '🎯', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
@@ -62,21 +62,50 @@ const estilos = `
 
 function PainelParticipante() {
   const [pagina, setPagina] = useState('inicio')
+  const [competicaoId, setCompeticaoId] = useState(null)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximo: null, porFazer: null, totalJogos: 0 })
   const [aCarregarResumo, setACarregarResumo] = useState(true)
   const [erroResumo, setErroResumo] = useState('')
   const [atualizacao, setAtualizacao] = useState(0)
+useEffect(() => {
+  let ativo = true
 
+  async function carregarCompeticaoAtiva() {
+    const { data, error } = await supabase
+      .from('competitions')
+      .select('id')
+      .eq('active', true)
+      .limit(2)
+
+    if (!ativo) return
+
+    if (error) {
+      console.error('Erro ao carregar competição:', error.message)
+    } else if (data?.length === 1) {
+      setCompeticaoId(data[0].id)
+    } else {
+      console.error('Não foi possível identificar uma única competição ativa.')
+    }
+  }
+
+  carregarCompeticaoAtiva()
+
+  return () => {
+    ativo = false
+  }
+}, [])
   const carregarResumo = useCallback(async (signal) => {
-    setACarregarResumo(true)
+  if (!competicaoId) return
+
+  setACarregarResumo(true)
     setErroResumo('')
     try {
       const { data: { user }, error: erroUser } = await supabase.auth.getUser()
       if (erroUser || !user) throw new Error('Não foi possível identificar o utilizador.')
 
       const [resultadoClassificacao, resultadoEpoca] = await Promise.all([
-        supabase.rpc('obter_classificacao', { p_competition_id: COMPETICAO_ID }),
-        supabase.from('seasons').select('id').eq('competition_id', COMPETICAO_ID).eq('status', 'active').maybeSingle(),
+        supabase.rpc('obter_classificacao', { p_competition_id: competicaoId }),
+        supabase.from('seasons').select('id').eq('competition_id', competicaoId).eq('status', 'active').maybeSingle(),
       ])
       if (resultadoClassificacao.error) throw resultadoClassificacao.error
       if (resultadoEpoca.error) throw resultadoEpoca.error
@@ -93,7 +122,7 @@ function PainelParticipante() {
         const { data: jogos, error: erroJogos } = await supabase
           .from('matches')
           .select('id,home_team,away_team,kickoff,status')
-          .eq('competition_id', COMPETICAO_ID)
+          .eq('competition_id', competicaoId)
 .eq('season_id', resultadoEpoca.data.id)
           .gt('kickoff', new Date().toISOString())
           .order('kickoff', { ascending: true })
@@ -132,7 +161,7 @@ function PainelParticipante() {
     } finally {
       if (!signal.aborted) setACarregarResumo(false)
     }
-  }, [])
+  }, [competicaoId])
 
   useEffect(() => {
     if (pagina !== 'inicio') return
@@ -143,8 +172,8 @@ function PainelParticipante() {
 
   const componentes = {
     prognosticos: <JogosParticipante />,
-    liga: <Liga />,
-    estatisticas: <Estatisticas />,
+    liga: <Liga competicaoId={competicaoId} />,
+    estatisticas: <Estatisticas competicaoId={competicaoId} />,
     'hall-da-fama': <HallDaFama />,
     chat: <Chat />,
      }
@@ -218,7 +247,9 @@ function PainelParticipante() {
           <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
             {secaoAtual?.icone} {secaoAtual?.nome}
           </h2>
-          {componentes[pagina]}
+          {competicaoId
+  ? componentes[pagina]
+  : <p>A aguardar uma competição ativa...</p>}
                </main>
       )}
     </div>
