@@ -258,7 +258,8 @@ function calcularPrecisao(jogador) {
   return ((exatos / jogos) * 100).toFixed(1) + '%'
 }
 
-function Liga({ competicaoId = '549b62f6-1f54-48db-b002-adb0e4754642' }) {
+function Liga({ competicaoId = '3d0f0048-d5b9-418e-b5f5-57d19782fe92' }) {
+  console.log('LIGA - competicaoId:', competicaoId)
   const [classificacao, setClassificacao] = useState([])
   const [tipoClassificacao, setTipoClassificacao] = useState('geral')
   const [jornadas, setJornadas] = useState([])
