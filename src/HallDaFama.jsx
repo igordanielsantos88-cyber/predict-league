@@ -2,7 +2,62 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID_PADRAO = '549b62f6-1f54-48db-b002-adb0e4754642'
+// Ligação explícita entre as duas competições deste grupo.
+const COMPETICOES_DO_GRUPO = [
+  '549b62f6-1f54-48db-b002-adb0e4754642',
+  '3d0f0048-d5b9-418e-b5f5-57d19782fe92',
+]
+
+function calcularRanking(registos, unirAndre) {
+  const jogadores = new Map()
+  const vistos = new Set()
+  for (const registo of registos) {
+    const original = registo.participant_name?.trim()
+    if (!original) throw new Error('Existe um participante histórico sem nome.')
+    const nome = unirAndre && original === 'Gordo' ? 'André' : original
+    const chave = `${registo.season_id}:${nome}`
+    if (vistos.has(chave)) {
+      throw new Error(`Existem registos repetidos de ${nome} na mesma época.`)
+    }
+    vistos.add(chave)
+    for (const campo of ['total_points', 'exact_scores', 'position']) {
+      if (registo[campo] == null || !Number.isSafeInteger(Number(registo[campo])) ||
+          Number(registo[campo]) < (campo === 'position' ? 1 : 0)) {
+        throw new Error(`Dados históricos inválidos para ${nome}.`)
+      }
+    }
+    const jogador = jogadores.get(nome) || {
+      participant_name: nome, total_points: 0, exact_scores: 0, titulos: 0, epocas: 0,
+    }
+    jogador.total_points += Number(registo.total_points)
+    jogador.exact_scores += Number(registo.exact_scores)
+    jogador.titulos += Number(registo.position) === 1 ? 1 : 0
+    jogador.epocas += 1
+    jogadores.set(nome, jogador)
+  }
+  const ranking = [...jogadores.values()].sort((a, b) =>
+    b.titulos - a.titulos || b.total_points - a.total_points ||
+    b.exact_scores - a.exact_scores || a.participant_name.localeCompare(b.participant_name, 'pt-PT')
+  )
+  ranking.forEach((jogador, indice) => {
+    const anterior = ranking[indice - 1]
+    jogador.position = anterior && anterior.titulos === jogador.titulos &&
+      anterior.total_points === jogador.total_points && anterior.exact_scores === jogador.exact_scores
+      ? anterior.position : indice + 1
+  })
+  return ranking
+}
+
+async function lerPaginas(criarConsulta, signal) {
+  const linhas = []
+  for (let inicio = 0; ; inicio += 500) {
+    const { data, error } = await criarConsulta().range(inicio, inicio + 499).abortSignal(signal)
+    if (error) throw error
+    if (signal.aborted) throw new Error('Consulta cancelada.')
+    linhas.push(...(data || []))
+    if (!data || data.length < 500) return linhas
+  }
+}
 
 const estilos = `
   .pl-hall {
@@ -12,6 +67,11 @@ const estilos = `
     font-family: Arial, sans-serif;
   }
 
+  .pl-hall-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .pl-hall-acoes button { background: #1b2535; color: #f8fafc; border: 1px solid #8f722e; border-radius: 10px; padding: 12px 16px; cursor: pointer; font: inherit; }
+  .pl-hall-acoes button[aria-pressed="true"] { background: #e8c76a; color: #111827; font-weight: bold; }
+  .pl-hall-acoes button:focus-visible { outline: 2px solid #f0d477; outline-offset: 3px; }
+  .pl-hall-acoes button:disabled { opacity: .5; cursor: wait; }
   .pl-hall * {
     box-sizing: border-box;
   }
@@ -253,126 +313,56 @@ const estilos = `
   }
 `
 
-export default function HallDaFama({ competicaoId = COMPETICAO_ID_PADRAO }) {
-  const [epocas, setEpocas] = useState([])
+export default function HallDaFama({ competicaoId }) {
+  const [vista, setVista] = useState('historico')
   const [epocaId, setEpocaId] = useState('')
-  const [classificacao, setClassificacao] = useState([])
-  const [aCarregarEpocas, setACarregarEpocas] = useState(true)
-  const [aCarregarClassificacao, setACarregarClassificacao] = useState(false)
-  const [erroEpocas, setErroEpocas] = useState('')
-  const [erroClassificacao, setErroClassificacao] = useState('')
+  const [atualizacao, setAtualizacao] = useState(0)
+  const [estado, setEstado] = useState(null)
+  // Sem prop, preserva o histórico do grupo já apresentado neste componente.
+  // Uma competição diferente nunca recebe o histórico deste grupo.
+  const contexto = competicaoId || 'grupo-predict-league'
 
   useEffect(() => {
-    let ativo = true
-
-    setACarregarEpocas(true)
-    setErroEpocas('')
-    setErroClassificacao('')
-    setEpocas([])
-    setEpocaId('')
-    setClassificacao([])
-
-    async function carregarEpocas() {
-      const { data, error } = await supabase
-  .from('seasons')
-  .select('id, name, status')
-  .eq('status', 'completed')
-  .order('created_at', { ascending: false })
-
-      if (!ativo) return
-
-      if (error) {
-        setErroEpocas(error.message)
-      } else {
-      const ordemEpocas = {
-  '1.ª Época': 1,
-  '2.ª Época': 2,
-  'Mundial 2026': 3
-}
-
-const epocasOrdenadas = [...(data || [])].sort(
-  (a, b) =>
-    (ordemEpocas[a.name] ?? 999) -
-    (ordemEpocas[b.name] ?? 999)
-)
-
-setEpocas(epocasOrdenadas)
-        setEpocaId(epocasOrdenadas[0]?.id || '')
-      }
-
-      setACarregarEpocas(false)
-    }
-
-    carregarEpocas()
-
-    return () => {
-      ativo = false
-    }
-  }, [competicaoId])
-
-  useEffect(() => {
-    if (!epocaId) {
-      setClassificacao([])
-      setACarregarClassificacao(false)
-      return
-    }
-
-    let ativo = true
-
-    async function carregarClassificacao() {
-      setACarregarClassificacao(true)
-      setErroClassificacao('')
-      setClassificacao([])
-
+    const controller = new AbortController()
+    const { signal } = controller
+    setEstado(null)
+    async function carregar() {
       try {
-        const { data, error } = await supabase
-          .from('hall_of_fame')
-          .select('position, participant_name, total_points')
-          .eq('season_id', epocaId)
-          .order('position', { ascending: true })
-
-        if (!ativo) return
-
-        if (error) {
-          setErroClassificacao(error.message)
-        } else {
-          setClassificacao(data || [])
-        }
-      } catch (error) {
-        if (ativo) {
-          setErroClassificacao(error.message)
-        }
-      } finally {
-        if (ativo) {
-          setACarregarClassificacao(false)
-        }
+        const grupoConhecido = !competicaoId || COMPETICOES_DO_GRUPO.includes(competicaoId)
+        const ids = grupoConhecido ? COMPETICOES_DO_GRUPO : [competicaoId]
+        const epocas = await lerPaginas(() => supabase.from('seasons')
+          .select('id, name, status, is_test, competition_id, created_at')
+          .eq('status', 'completed').eq('is_test', false)
+          .in('competition_id', ids).order('created_at').order('id'), signal)
+        const ordem = { '1.ª Época': 1, '2.ª Época': 2, 'Mundial 2026': 3 }
+        epocas.sort((a, b) => (ordem[a.name] ?? 999) - (ordem[b.name] ?? 999))
+        const registos = epocas.length ? await lerPaginas(() => supabase.from('hall_of_fame')
+          .select('id, season_id, participant_name, position, total_points, exact_scores')
+          .in('season_id', epocas.map(epoca => epoca.id)).order('id'), signal) : []
+        const ranking = calcularRanking(registos, grupoConhecido)
+        if (signal.aborted) return
+        setEpocaId(anterior => epocas.some(epoca => epoca.id === anterior) ? anterior : epocas[0]?.id || '')
+        setEstado({ contexto, atualizacao, epocas, registos, ranking, erro: '' })
+      } catch (erro) {
+        if (!signal.aborted) setEstado({ contexto, atualizacao, epocas: [], registos: [], ranking: [],
+          erro: erro.message || 'Não foi possível carregar o histórico.' })
       }
     }
+    carregar()
+    return () => controller.abort()
+  }, [competicaoId, contexto, atualizacao])
 
-    carregarClassificacao()
-
-    return () => {
-      ativo = false
-    }
-  }, [epocaId])
-
-
-  const aCarregar = aCarregarEpocas || aCarregarClassificacao
-  const erro = erroEpocas || erroClassificacao
-
-  const primeiros = [1, 2, 3]
-    .map(posicao =>
-      classificacao.find(
-        participante => Number(participante.position) === posicao
-      )
-    )
-    .filter(Boolean)
-
-  const ordemPodio = [
-    primeiros.find(p => Number(p.position) === 2),
-    primeiros.find(p => Number(p.position) === 1),
-    primeiros.find(p => Number(p.position) === 3)
-  ].filter(Boolean)
+  const pronto = estado?.contexto === contexto && estado?.atualizacao === atualizacao
+  const aCarregar = !pronto
+  const erro = pronto ? estado.erro : ''
+  const epocas = pronto ? estado.epocas : []
+  const historico = vista === 'historico'
+  const classificacao = !pronto || erro ? [] : historico ? estado.ranking :
+    estado.registos.filter(registo => registo.season_id === epocaId)
+      .sort((a, b) => Number(a.position) - Number(b.position) ||
+        a.participant_name.localeCompare(b.participant_name, 'pt-PT'))
+  const ordemPodio = [2, 1, 3].flatMap(posicao =>
+    classificacao.filter(participante => Number(participante.position) === posicao))
 
   function obterMedalha(posicao) {
     if (posicao === 1) return '🥇'
@@ -401,7 +391,16 @@ setEpocas(epocasOrdenadas)
         os resultados históricos da Predict League.
       </p>
 
-      {epocas.length > 0 && (
+      <div className="pl-hall-acoes" aria-label="Vista do Hall da Fama">
+        <button type="button" aria-pressed={historico} onClick={() => setVista('historico')}>Ranking histórico</button>
+        <button type="button" aria-pressed={!historico} onClick={() => setVista('epoca')}>Por época</button>
+        <button type="button" disabled={aCarregar} onClick={() => setAtualizacao(valor => valor + 1)}>Atualizar</button>
+      </div>
+      {historico && <p className="pl-hall-subtitulo">
+        Apenas épocas oficiais concluídas. Ordem: títulos, pontos e resultados exatos.
+        Empates nos três critérios partilham a posição. Épocas indica os registos históricos de cada participante.
+      </p>}
+      {!historico && epocas.length > 0 && (
         <div className="pl-hall-seletor">
           <label htmlFor="pl-hall-epoca">
             📅 Escolher época
@@ -446,7 +445,7 @@ setEpocas(epocasOrdenadas)
           {ordemPodio.length > 0 && (
             <section className="pl-hall-seccao">
               <h2 className="pl-hall-seccao-titulo">
-                👑 Pódio da época
+                {historico ? '👑 Pódio histórico' : '👑 Pódio da época'}
               </h2>
 
               <div className="pl-hall-podio">
@@ -455,14 +454,14 @@ setEpocas(epocasOrdenadas)
 
                   return (
                     <div
-                      key={posicao}
+                      key={participante.id || participante.participant_name}
                       className={
                         `pl-hall-podio-card ${obterClasse(posicao)}`
                       }
                     >
                       {posicao === 1 && (
                         <div className="pl-hall-campeao-label">
-                          ★ Campeão da época ★
+                          {historico ? '★ Líder histórico ★' : '★ Campeão da época ★'}
                         </div>
                       )}
 
@@ -494,7 +493,7 @@ setEpocas(epocasOrdenadas)
 
           <section className="pl-hall-tabela-painel">
             <h2 className="pl-hall-seccao-titulo">
-              📋 Classificação final
+              {historico ? '📋 Ranking histórico' : '📋 Classificação final'}
             </h2>
 
             {classificacao.length === 0 ? (
@@ -509,7 +508,10 @@ setEpocas(epocasOrdenadas)
                     <tr>
                       <th>Pos.</th>
                       <th>Participante</th>
+                      {historico && <th>Títulos</th>}
                       <th>Pontos</th>
+                      <th>Exatos</th>
+                      {historico && <th>Épocas</th>}
                     </tr>
                   </thead>
 
@@ -534,9 +536,12 @@ setEpocas(epocasOrdenadas)
                             {participante.participant_name || 'Sem nome'}
                           </td>
 
+                          {historico && <td>{participante.titulos}</td>}
                           <td className="pl-hall-tabela-pontos">
                             {participante.total_points}
                           </td>
+                          <td>{participante.exact_scores}</td>
+                          {historico && <td>{participante.epocas}</td>}
                         </tr>
                       )
                     })}
