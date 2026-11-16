@@ -5,6 +5,7 @@ import Liga from './Liga'
 import HallDaFama from './HallDaFama'
 import Estatisticas from './Estatisticas'
 import Duelo from './Duelo'
+import Conquistas from './Conquistas'
 import Chat from './Chat'
 
 
@@ -12,6 +13,7 @@ import Chat from './Chat'
 const secoes = [
   { id: 'prognosticos', icone: '🎯', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
   { id: 'liga', icone: '🏆', nome: 'Classificação', descricao: 'Acompanha a tabela da competição' },
+  { id: 'conquistas', icone: '🏅', nome: 'Conquistas', descricao: 'Descobre as tuas medalhas e acompanha o teu progresso' },
   { id: 'duelo', icone: '⚔️', nome: 'Duelo', descricao: 'Compara o teu desempenho com outro participante' },
   { id: 'estatisticas', icone: '📊', nome: 'Estatísticas', descricao: 'Consulta os números da competição' },
   { id: 'hall-da-fama', icone: '🥇', nome: 'Hall da Fama', descricao: 'Consulta os campeões das épocas anteriores' },
@@ -177,6 +179,7 @@ useEffect(() => {
     liga: <Liga competicaoId={competicaoId} />,
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
     duelo: <Duelo competicaoId={competicaoId} />,
+    conquistas: <Conquistas competicaoId={competicaoId} />,
     'hall-da-fama': <HallDaFama />,
     chat: <Chat />,
      }
