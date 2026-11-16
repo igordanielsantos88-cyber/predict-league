@@ -1,214 +1,188 @@
-
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
-function Notificacoes() {
-  const [notificacoes, setNotificacoes] = useState([])
-  const [aberto, setAberto] = useState(false)
-  const [erro, setErro] = useState('')
+const estilos = `
+.pl-notificacoes { color:#e2e8f0; line-height:1.6; }
+.pl-notificacoes * { box-sizing:border-box; }
+.pl-notificacoes .pn-topo,.pl-notificacoes .pn-acoes { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.pl-notificacoes .pn-topo { justify-content:space-between; }
+.pl-notificacoes .pn-contador { padding:6px 12px; border:1px solid #8f722e; border-radius:20px; color:#f0d477; }
+.pl-notificacoes button { padding:10px 14px; border:1px solid #594821; border-radius:9px; color:#e8c76a; background:#1b2535; cursor:pointer; font:inherit; }
+.pl-notificacoes button:disabled { opacity:.55; cursor:wait; }
+.pl-notificacoes button:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
+.pl-notificacoes button[aria-pressed=true] { background:#d4af37; color:#211806; }
+.pl-notificacoes .pn-nota { color:#a7b5c9; font-size:14px; }
+.pl-notificacoes .pn-lista { list-style:none; padding:0; display:grid; gap:12px; }
+.pl-notificacoes .pn-item { padding:20px; border:1px solid #354154; border-radius:14px; background:#101827; overflow-wrap:anywhere; }
+.pl-notificacoes .pn-nova { border-left:4px solid #d4af37; }
+.pl-notificacoes h3 { margin:0 0 8px; color:#e8c76a; font-size:17px; }
+.pl-notificacoes .pn-item p { white-space:pre-wrap; margin:10px 0; }
+.pl-notificacoes .pn-meta { color:#a7b5c9; font-size:13px; display:flex; flex-wrap:wrap; gap:12px; }
+.pl-notificacoes .pn-item button { margin-top:10px; }
+.pl-notificacoes .pn-erro { color:#fca5a5; }
+@media(max-width:600px) { .pl-notificacoes .pn-item { padding:14px; } }
+`
+
+function validarNotificacoes(data) {
+  if (!Array.isArray(data) || data.length > 50 || new Set(data.map(n => n?.id)).size !== data.length ||
+    !data.every(n => n && typeof n.id === 'string' && typeof n.titulo === 'string' &&
+      typeof n.mensagem === 'string' && typeof n.tipo === 'string' && typeof n.lida === 'boolean' &&
+      typeof n.criada_em === 'string' && Number.isFinite(Date.parse(n.criada_em)))) {
+    throw new Error('A resposta das notificações não é válida. Tenta atualizar.')
+  }
+  return data
+}
+
+function categoria(tipo) {
+  if (tipo === 'new_match') return 'Novo jogo'
+  if (tipo === 'match_result') return 'Resultado'
+  if (tipo === 'match_reminder' || tipo.startsWith('reminder_')) return 'Lembrete'
+  return 'Aviso'
+}
+
+export default function Notificacoes() {
+  const [estado, setEstado] = useState({ itens: null, erro: '', carregando: true })
+  const [filtro, setFiltro] = useState('todas')
   const [aMarcar, setAMarcar] = useState(null)
-  const [aCarregar, setACarregar] = useState(true)
+  const [erroMarcacao, setErroMarcacao] = useState('')
+  const acoes = useRef(null)
+  const atualizar = useCallback(() => acoes.current?.carregar(), [])
+  const marcar = useCallback(id => acoes.current?.marcar(id), [])
 
   useEffect(() => {
     let ativo = true
+    let pedido = 0
+    let controller = null
+    let mutacao = false
+    let operacao = 0
+    let utilizador = null
+    let itens = []
+    let ultimaTentativa = 0
 
     async function carregar() {
-      const { data, error } = await supabase.rpc(
-        'obter_notificacoes'
-      )
-
-      if (!ativo) return
-
-      setACarregar(false)
-
-      if (error) {
-        console.error('Erro nas notificações:', error)
-        setErro(
-          'Não foi possível carregar as notificações: ' +
-          error.message
-        )
-      } else {
-        setErro('')
-        setNotificacoes(data || [])
+      if (!ativo || mutacao) return
+      const atual = ++pedido
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      ultimaTentativa = Date.now()
+      setEstado({ itens: null, erro: '', carregando: true })
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (!ativo || atual !== pedido) return
+        if (error || !data?.user) throw new Error('Inicia sessão novamente para consultar as notificações.')
+        utilizador = data.user.id
+        const resultado = await supabase.rpc('obter_notificacoes').abortSignal(signal)
+        if (!ativo || atual !== pedido) return
+        if (resultado.error) throw new Error('Não foi possível carregar as notificações. Tenta novamente.')
+        itens = validarNotificacoes(resultado.data)
+        setEstado({ itens, erro: '', carregando: false })
+      } catch (error) {
+        if (ativo && atual === pedido) {
+          itens = []
+          setEstado({ itens: null, erro: error.message || 'Não foi possível carregar as notificações.', carregando: false })
+        }
       }
     }
 
+    async function marcarLida(id) {
+      if (!ativo || mutacao || !utilizador || !itens.some(n => n.id === id && !n.lida)) return
+      mutacao = true
+      const operacaoAtual = ++operacao
+      const atual = ++pedido
+      const dono = utilizador
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      setAMarcar(id)
+      setErroMarcacao('')
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (!ativo || atual !== pedido) return
+        if (error || data?.user?.id !== dono) throw new Error('A sessão mudou. Atualiza as notificações antes de continuar.')
+        const resultado = await supabase.rpc('marcar_notificacao_lida', { p_notificacao_id: id }).abortSignal(signal)
+        if (!ativo || atual !== pedido) return
+        if (resultado.error || typeof resultado.data !== 'boolean') throw new Error('Não foi possível marcar o aviso como lido. Tenta novamente.')
+        // false pode significar que outra sessão já marcou o aviso; confirmar no servidor.
+        if (resultado.data) {
+          itens = itens.map(n => n.id === id ? { ...n, lida: true } : n)
+          setEstado({ itens, erro: '', carregando: false })
+        }
+        mutacao = false
+        await carregar()
+      } catch (error) {
+        if (ativo && atual === pedido) setErroMarcacao(error.message || 'Não foi possível marcar o aviso como lido.')
+      } finally {
+        if (ativo && operacaoAtual === operacao) {
+          mutacao = false
+          setAMarcar(null)
+        }
+      }
+    }
+
+    function refrescarVisivel() {
+      if (document.visibilityState !== 'hidden' && Date.now() - ultimaTentativa >= 5000) carregar()
+    }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const novo = session?.user?.id ?? null
+      if (novo === utilizador && _event !== 'SIGNED_OUT') return
+      ++operacao
+      ++pedido
+      controller?.abort()
+      utilizador = novo
+      itens = []
+      mutacao = false
+      setAMarcar(null)
+      setErroMarcacao('')
+      setEstado({ itens: null, erro: '', carregando: true })
+      // Não fazer chamadas Supabase dentro do callback de autenticação.
+      queueMicrotask(() => { if (ativo) carregar() })
+    })
+    acoes.current = { carregar, marcar: marcarLida }
     carregar()
-
-    const intervalo = setInterval(carregar, 30000)
-
+    const timer = window.setInterval(refrescarVisivel, 60000)
+    window.addEventListener('focus', refrescarVisivel)
+    document.addEventListener('visibilitychange', refrescarVisivel)
     return () => {
       ativo = false
-      clearInterval(intervalo)
+      ++pedido
+      controller?.abort()
+      acoes.current = null
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refrescarVisivel)
+      document.removeEventListener('visibilitychange', refrescarVisivel)
+      listener?.subscription?.unsubscribe()
     }
   }, [])
 
-  async function marcarLida(id) {
-    setAMarcar(id)
-    setErro('')
-
-    try {
-      const { data, error } = await supabase.rpc(
-        'marcar_notificacao_lida',
-        { p_notificacao_id: id }
-      )
-
-      if (error) {
-        console.error('Erro ao marcar como lida:', error)
-        setErro(error.message)
-      } else if (data === true) {
-        setNotificacoes(anteriores =>
-          anteriores.map(n =>
-            n.id === id ? { ...n, lida: true } : n
-          )
-        )
-      } else {
-        setErro('Não foi possível atualizar esta notificação.')
-      }
-    } catch (error) {
-      console.error(error)
-      setErro('Ocorreu um erro ao atualizar a notificação.')
-    } finally {
-      setAMarcar(null)
-    }
-  }
-
-  const porLer = notificacoes.filter(n => !n.lida).length
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setAberto(!aberto)}
-        aria-label={`Notificações: ${porLer} por ler`}
-        aria-expanded={aberto}
-        style={{
-          background: '#1b2535',
-          color: '#e8c76a',
-          border: '1px solid #8f722e',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          cursor: 'pointer',
-          fontWeight: 'bold',
-          fontSize: '15px',
-        }}
-      >
-        🔔 {porLer > 0 ? porLer : ''}
-      </button>
-
-      {aberto && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 12px)',
-            width: 'min(360px, calc(100vw - 32px))',
-            maxHeight: '420px',
-            overflowY: 'auto',
-            background: '#172235',
-            border: '1px solid #8f722e',
-            borderRadius: '14px',
-            padding: '18px',
-            zIndex: 1000,
-            boxShadow: '0 16px 40px rgba(0,0,0,0.45)',
-            color: '#f8fafc',
-            textAlign: 'left',
-            boxSizing: 'border-box',
-          }}
-        >
-          <h3 style={{
-            marginTop: 0,
-            marginBottom: '16px',
-            color: '#e8c76a',
-          }}>
-            🔔 Notificações
-          </h3>
-
-          {aCarregar && (
-            <p style={{ color: '#94a3b8' }}>
-              A carregar notificações...
-            </p>
-          )}
-
-          {erro && (
-            <p style={{ color: '#f87171' }}>
-              {erro}
-            </p>
-          )}
-
-          {!aCarregar &&
-            notificacoes.length === 0 &&
-            !erro && (
-              <p style={{ color: '#94a3b8' }}>
-                Não tens notificações.
-              </p>
-            )}
-
-          {notificacoes.map(n => (
-            <div
-              key={n.id}
-              style={{
-                padding: '14px 0',
-                borderBottom: '1px solid #3d3b30',
-                opacity: n.lida ? 0.65 : 1,
-              }}
-            >
-              <strong style={{
-                display: 'block',
-                color: '#e8c76a',
-                fontSize: '14px',
-                marginBottom: '6px',
-              }}>
-                {n.titulo || 'Notificação'}
-              </strong>
-
-              <p style={{
-                color: '#cbd5e1',
-                fontSize: '13px',
-                lineHeight: '1.5',
-                margin: 0,
-              }}>
-                {n.mensagem}
-              </p>
-
-              {n.criada_em && (
-                <small style={{
-                  display: 'block',
-                  color: '#94a3b8',
-                  marginTop: '8px',
-                }}>
-                  {new Date(n.criada_em)
-                    .toLocaleString('pt-PT')}
-                </small>
-              )}
-
-              {!n.lida && (
-                <button
-                  type="button"
-                  disabled={aMarcar === n.id}
-                  onClick={() => marcarLida(n.id)}
-                  style={{
-                    background: '#d4af37',
-                    color: '#211806',
-                    border: 'none',
-                    borderRadius: '7px',
-                    padding: '8px 12px',
-                    marginTop: '10px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {aMarcar === n.id
-                    ? 'A atualizar...'
-                    : 'Marcar como lida'}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+  const naoLidas = estado.itens?.filter(n => !n.lida).length
+  const visiveis = estado.itens?.filter(n => filtro === 'todas' || !n.lida) ?? []
+  return <section className="pl-notificacoes" aria-label="As minhas notificações" aria-busy={estado.carregando}>
+    <style>{estilos}</style>
+    <div className="pn-topo">
+      <span className="pn-contador">{naoLidas == null ? '—' : naoLidas} por ler nos últimos 50 avisos</span>
+      <button type="button" disabled={estado.carregando || !!aMarcar} onClick={atualizar}>Atualizar</button>
     </div>
-  )
+    <p className="pn-nota">Avisos pessoais da tua conta, incluindo épocas de teste. Mostramos até 50, dos mais recentes para os mais antigos.</p>
+    <div className="pn-acoes">
+      <button type="button" aria-pressed={filtro === 'todas'} onClick={() => setFiltro('todas')}>Todas</button>
+      <button type="button" aria-pressed={filtro === 'nao-lidas'} onClick={() => setFiltro('nao-lidas')}>Por ler</button>
+    </div>
+    {estado.carregando && <p role="status">A carregar notificações…</p>}
+    {estado.erro && <p role="alert" className="pn-erro">{estado.erro}</p>}
+    {erroMarcacao && <p role="alert" className="pn-erro">{erroMarcacao}</p>}
+    {estado.itens && !visiveis.length && <p>{filtro === 'nao-lidas' ? 'Não tens avisos por ler entre os últimos 50.' : 'Ainda não tens notificações.'}</p>}
+    <ul className="pn-lista">{visiveis.map(n => <li className={`pn-item${n.lida ? '' : ' pn-nova'}`} key={n.id}>
+      <h3>{n.titulo}</h3>
+      <div className="pn-meta"><span>{categoria(n.tipo)}</span><span>{n.lida ? 'Lida' : 'Por ler'}</span>
+        <time dateTime={n.criada_em}>{new Date(n.criada_em).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</time>
+      </div>
+      <p>{n.mensagem}</p>
+      {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar(n.id)}>
+        {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
+      </button>}
+    </li>)}</ul>
+    <p className="pn-nota">Esta lista atualiza a cada minuto enquanto está aberta e visível. Os avisos refletem o momento em que foram criados; consulta os jogos para veres os dados atuais.</p>
+    <p className="pn-nota">As notificações fora da aplicação ainda não estão ativadas.</p>
+  </section>
 }
-
-export default Notificacoes

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import Dashboard from './Dashboard'
 import PainelParticipante from './PainelParticipante'
-import Notificacoes from './Notificacoes'
+
 
 const cores = {
   fundo: '#090d16',
@@ -63,6 +63,11 @@ const estilos = `
     font-weight: bold;
     cursor: pointer;
     transition: background .2s, border-color .2s;
+  }
+
+  .pl-logout:focus-visible {
+    outline: 2px solid #f0d477;
+    outline-offset: 3px;
   }
 
   .pl-logout:hover {
@@ -202,6 +207,7 @@ const estilos = `
 `
 
 function App() {
+  const [pedidoNotificacoes, setPedidoNotificacoes] = useState(0)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mensagem, setMensagem] = useState('')
@@ -363,6 +369,7 @@ function App() {
     setEmail('')
     setPassword('')
     setMensagem('')
+    setPedidoNotificacoes(0)
   }
 
   if (aVerificarSessao) {
@@ -390,7 +397,15 @@ function App() {
           </div>
 
           <div className="pl-topbar-actions">
-            <Notificacoes />
+            <button
+              type="button"
+              className="pl-logout"
+              aria-label="Abrir notificações"
+              title="Notificações"
+              onClick={() => setPedidoNotificacoes(n => n + 1)}
+            >
+              <span aria-hidden="true">🔔</span>
+            </button>
 
             <button
               type="button"
@@ -403,8 +418,8 @@ function App() {
         </header>
 
         {administrador
-          ? <Dashboard />
-          : <PainelParticipante />}
+          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} />
+          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} />}
       </div>
     )
   }

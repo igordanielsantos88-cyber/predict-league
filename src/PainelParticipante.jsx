@@ -6,6 +6,7 @@ import HallDaFama from './HallDaFama'
 import Estatisticas from './Estatisticas'
 import Duelo from './Duelo'
 import Conquistas from './Conquistas'
+import Notificacoes from './Notificacoes'
 import Chat from './Chat'
 
 
@@ -13,6 +14,7 @@ import Chat from './Chat'
 const secoes = [
   { id: 'prognosticos', icone: '🎯', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
   { id: 'liga', icone: '🏆', nome: 'Classificação', descricao: 'Acompanha a tabela da competição' },
+  { id: 'notificacoes', icone: '🔔', nome: 'Notificações', descricao: 'Consulta os teus avisos de jogos, resultados e lembretes' },
   { id: 'conquistas', icone: '🏅', nome: 'Conquistas', descricao: 'Descobre as tuas medalhas e acompanha o teu progresso' },
   { id: 'duelo', icone: '⚔️', nome: 'Duelo', descricao: 'Compara o teu desempenho com outro participante' },
   { id: 'estatisticas', icone: '📊', nome: 'Estatísticas', descricao: 'Consulta os números da competição' },
@@ -64,8 +66,11 @@ const estilos = `
   @media (prefers-reduced-motion:reduce) { .pl-card,.pl-gold-button { transition:none; } .pl-card:hover,.pl-gold-button:hover { transform:none; } }
 `
 
-function PainelParticipante() {
+function PainelParticipante({ pedidoNotificacoes = 0 }) {
   const [pagina, setPagina] = useState('inicio')
+  useEffect(() => {
+    if (pedidoNotificacoes > 0) setPagina('notificacoes')
+  }, [pedidoNotificacoes])
   const [competicaoId, setCompeticaoId] = useState(null)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximo: null, porFazer: null, totalJogos: 0 })
   const [aCarregarResumo, setACarregarResumo] = useState(true)
@@ -180,6 +185,7 @@ useEffect(() => {
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
     duelo: <Duelo competicaoId={competicaoId} />,
     conquistas: <Conquistas competicaoId={competicaoId} />,
+    notificacoes: <Notificacoes />,
     'hall-da-fama': <HallDaFama />,
     chat: <Chat />,
      }
