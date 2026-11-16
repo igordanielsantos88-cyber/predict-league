@@ -258,226 +258,168 @@ function calcularPrecisao(jogador) {
   return ((exatos / jogos) * 100).toFixed(1) + '%'
 }
 
+function calcularMovimentos(anterior, atual) {
+  // As funções SQL não desempataram nomes iguais com pontos/exatos iguais.
+  // Nesse caso omitimos a seta, em vez de inventar um movimento.
+  const chave = jogador => JSON.stringify([
+    Number(jogador.pontos), Number(jogador.resultados_exatos), jogador.jogador,
+  ])
+  const contar = lista => {
+    const contagens = new Map()
+    lista.forEach(jogador => {
+      const valor = chave(jogador)
+      contagens.set(valor, (contagens.get(valor) || 0) + 1)
+    })
+    return contagens
+  }
+  const contagemAnterior = contar(anterior)
+  const contagemAtual = contar(atual)
+  const posicoes = new Map(anterior.map((jogador, indice) => [
+    jogador.user_id, { jogador, posicao: indice + 1 },
+  ]))
+  const movimentos = new Map()
+  atual.forEach((jogador, indice) => {
+    const antes = posicoes.get(jogador.user_id)
+    if (
+      antes && contagemAnterior.get(chave(antes.jogador)) === 1 &&
+      contagemAtual.get(chave(jogador)) === 1
+    ) movimentos.set(jogador.user_id, antes.posicao - (indice + 1))
+  })
+  return movimentos
+}
+
 function Liga({ competicaoId }) {
-
-  const [classificacao, setClassificacao] = useState([])
   const [tipoClassificacao, setTipoClassificacao] = useState('geral')
-  const [jornadas, setJornadas] = useState([])
-  const [jornadaSelecionada, setJornadaSelecionada] = useState('')
-  const [classificacaoJornada, setClassificacaoJornada] = useState([])
-  const [jogosDaJornada, setJogosDaJornada] = useState([])
-  const [aCarregarJornada, setACarregarJornada] = useState(false)
-  const [erroJornada, setErroJornada] = useState('')
-  const [utilizadorAtual, setUtilizadorAtual] = useState(null)
-  const [aCarregar, setACarregar] = useState(true)
-  const [erro, setErro] = useState('')
+  const [selecao, setSelecao] = useState({ competicaoId: null, id: '' })
+  const [recarregar, setRecarregar] = useState(0)
+  const [estado, setEstado] = useState(null)
+  const [ligacao, setLigacao] = useState({ competicaoId: null, estado: 'a-ligar' })
+  const jornadaPedida = selecao.competicaoId === competicaoId ? selecao.id : ''
 
   useEffect(() => {
+    if (!competicaoId) return
     let ativo = true
+    let versao = 0
+    let temporizador = null
+    let controller = null
+    const chaveCanal = `liga-resultados-${competicaoId}-${Math.random().toString(36).slice(2)}`
 
-    async function carregarJornadas() {
-      const { data: epoca, error: erroEpoca } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('competition_id', competicaoId)
-        .eq('status', 'active')
-        .single()
-
-      if (!ativo) return
-
-      if (erroEpoca || !epoca) {
-        setErroJornada('Não foi possível encontrar a época ativa.')
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('jornadas')
-        .select('id, numero, nome')
-        .eq('season_id', epoca.id)
-        .order('numero', { ascending: true })
-
-      if (!ativo) return
-
-      if (error) {
-        setErroJornada(error.message)
-        return
-      }
-
-      setJornadas(data || [])
-
-      if (data?.length > 0) {
-        setJornadaSelecionada(data[0].id)
-      }
+    const executar = async consulta => {
+      const { data, error } = await consulta
+      if (error) throw error
+      return data
     }
 
-    carregarJornadas()
-
-    return () => {
-      ativo = false
-    }
-  }, [competicaoId])
-
-  useEffect(() => {
-    let ativo = true
-
-    async function carregarClassificacao() {
+    async function carregar() {
+      const minhaVersao = ++versao
+      controller?.abort()
+      const pedido = new AbortController()
+      controller = pedido
+      const vigente = () => ativo && minhaVersao === versao
+      const consultar = consulta => executar(consulta.abortSignal(pedido.signal))
+      // Adia a atualização inicial até depois da execução síncrona do efeito.
+      await Promise.resolve()
+      if (!vigente()) return
+      setEstado(anterior => ({
+        competicaoId, jornadaPedida, aCarregar: true, erro: '',
+        dados: anterior?.competicaoId === competicaoId && anterior?.jornadaPedida === jornadaPedida
+          ? anterior.dados : null,
+      }))
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const dados = await consultar(supabase.rpc('obter_painel_classificacao', {
+          p_competition_id: competicaoId,
+          p_jornada_id: jornadaPedida || null,
+        }))
+        if (!vigente()) return
+        if (
+          dados?.versao !== 1 || dados.competicaoId !== competicaoId ||
+          !Array.isArray(dados.geral) || !Array.isArray(dados.porJornada) ||
+          !Array.isArray(dados.acumulada) || !Array.isArray(dados.acumuladaAnterior) ||
+          !Array.isArray(dados.jornadas) || !Array.isArray(dados.jogos)
+        ) throw new Error('A resposta da classificação é inválida. Tenta atualizar novamente.')
+        // A função STABLE devolve todas as listas na mesma leitura da base de dados.
+        setEstado({ competicaoId, jornadaPedida, aCarregar: false, erro: '', dados })
 
-        if (!ativo) return
-
-        setUtilizadorAtual(user?.id ?? null)
-
-        const { data, error } = await supabase.rpc(
-          'obter_classificacao',
-          { p_competition_id: competicaoId }
-        )
-
-        if (!ativo) return
-
-        if (error) {
-          setErro(error.message)
-        } else {
-          setClassificacao(data || [])
-        }
-      } catch {
-        if (ativo) {
-          setErro('Ocorreu um erro ao carregar a classificação.')
-        }
-      } finally {
-        if (ativo) setACarregar(false)
+      } catch (erro) {
+        if (vigente()) setEstado({
+          competicaoId, jornadaPedida, aCarregar: false,
+          erro: erro.message || 'Não foi possível atualizar a classificação.', dados: null,
+        })
       }
     }
 
-    carregarClassificacao()
-
-    return () => {
-      ativo = false
-    }
-  }, [competicaoId])
-
-  useEffect(() => {
-    if (tipoClassificacao !== 'jornada' || !jornadaSelecionada) {
-      return
+    function agendarAtualizacao() {
+      if (!ativo) return
+      ++versao
+      controller?.abort()
+      clearTimeout(temporizador)
+      // Retira imediatamente posições/setas que possam ter ficado desatualizadas.
+      setEstado(anterior => anterior ? { ...anterior, aCarregar: true, erro: '' } : anterior)
+      temporizador = setTimeout(carregar, 200)
     }
 
-    let ativo = true
-
-    async function carregarClassificacaoJornada() {
-      setACarregarJornada(true)
-      setErroJornada('')
-
-      try {
-        const { data, error } = await supabase.rpc(
-          'obter_classificacao_jornada',
-          {
-            p_competition_id: competicaoId,
-            p_jornada_id: jornadaSelecionada,
-          }
-        )
-
+    const canal = supabase.channel(chaveCanal)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'matches',
+        filter: `competition_id=eq.${competicaoId}`,
+      }, agendarAtualizacao)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'matches',
+        filter: `competition_id=eq.${competicaoId}`,
+      }, agendarAtualizacao)
+      .subscribe(status => {
         if (!ativo) return
+        setLigacao({ competicaoId, estado: status })
+        if (status === 'SUBSCRIBED') agendarAtualizacao()
+      })
 
-        if (error) {
-          setErroJornada(error.message)
-          setClassificacaoJornada([])
-        } else {
-          setClassificacaoJornada(data || [])
-        }
-      } catch {
-        if (ativo) {
-          setErroJornada(
-            'Ocorreu um erro ao carregar a classificação da jornada.'
-          )
-        }
-      } finally {
-        if (ativo) setACarregarJornada(false)
-      }
+    void carregar()
+    // Recupera eventos perdidos e eliminações, mesmo sem uma ligação Realtime ativa.
+    // Não dependemos de DELETE filtrado no Realtime.
+    const intervalo = setInterval(() => {
+      if (document.visibilityState === 'visible') agendarAtualizacao()
+    }, 60000)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') agendarAtualizacao()
     }
-
-    carregarClassificacaoJornada()
-
+    window.addEventListener('online', aoVoltar)
+    window.addEventListener('focus', aoVoltar)
+    document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       ativo = false
+      ++versao
+      controller?.abort()
+      clearTimeout(temporizador)
+      clearInterval(intervalo)
+      window.removeEventListener('online', aoVoltar)
+      window.removeEventListener('focus', aoVoltar)
+      document.removeEventListener('visibilitychange', aoVoltar)
+      void supabase.removeChannel(canal)
     }
-  }, [tipoClassificacao, jornadaSelecionada, competicaoId])
-useEffect(() => {
-  if (tipoClassificacao !== 'jornada' || !jornadaSelecionada) {
-    setJogosDaJornada([])
-    return
-  }
+  }, [competicaoId, jornadaPedida, recarregar])
 
-  let ativo = true
-
-  async function carregarEstadoJornada() {
-    setJogosDaJornada([])
-
-    const { data, error } = await supabase
-      .from('matches')
-      .select('id, status')
-      .eq('competition_id', competicaoId)
-      .eq('jornada_id', jornadaSelecionada)
-
-    if (!ativo) return
-
-    if (error) {
-      console.error('Erro ao verificar jornada:', error.message)
-      return
-    }
-
-    setJogosDaJornada(data || [])
-  }
-
-  carregarEstadoJornada()
-
-  return () => {
-    ativo = false
-  }
-}, [tipoClassificacao, jornadaSelecionada, competicaoId])
-
-const jornadaTerminada =
-  jogosDaJornada.length > 0 &&
-  jogosDaJornada.every(jogo => jogo.status === 'finished')
-  const modoTesteCampeao = false
-
-const classificacaoTeste = [
-  { user_id: 'teste-1', jogador: 'Igor', pontos: 18 },
-  { user_id: 'teste-2', jogador: 'João', pontos: 18 },
-  { user_id: 'teste-3', jogador: 'Rui', pontos: 12 },
-]
-
-const lideresJornada = modoTesteCampeao
-  ? classificacaoTeste
-  : classificacaoJornada
-
-const jornadaConcluidaParaMostrar =
-  modoTesteCampeao ? true : jornadaTerminada
-  const classificacaoVisivel =
-    tipoClassificacao === 'geral'
-      ? classificacao
-      : classificacaoJornada
-
-  const minhaPosicaoVisivel = classificacaoVisivel.findIndex(
-    jogador => jogador.user_id === utilizadorAtual
-  )
-
-  const meusDadosVisiveis =
-    minhaPosicaoVisivel >= 0
-      ? classificacaoVisivel[minhaPosicaoVisivel]
-      : null
-
-  const aCarregarAtual =
-    tipoClassificacao === 'geral'
-      ? aCarregar
-      : aCarregarJornada
-
-  const erroAtual =
-    tipoClassificacao === 'geral'
-      ? erro
-      : erroJornada
+  const estadoCorreto = estado?.competicaoId === competicaoId && estado?.jornadaPedida === jornadaPedida
+  const dados = estadoCorreto ? estado.dados : null
+  const aCarregarAtual = Boolean(competicaoId) && (!estadoCorreto || estado.aCarregar)
+  const erroAtual = !competicaoId ? 'Não foi possível identificar a competição ativa.'
+    : estadoCorreto ? estado.erro : ''
+  const jornadas = dados?.jornadas || []
+  const jornadaSelecionada = dados?.jornadaSelecionada || ''
+  const utilizadorAtual = dados?.utilizadorAtual || null
+  const classificacaoVisivel = tipoClassificacao === 'geral' ? dados?.geral || []
+    : tipoClassificacao === 'concluidas' ? dados?.acumulada || [] : dados?.porJornada || []
+  const movimentosParaMostrar = !aCarregarAtual && !erroAtual && dados?.anterior
+    ? calcularMovimentos(dados.acumuladaAnterior, dados.acumulada) : new Map()
+  const minhaPosicaoVisivel = classificacaoVisivel.findIndex(jogador => jogador.user_id === utilizadorAtual)
+  const meusDadosVisiveis = classificacaoVisivel[minhaPosicaoVisivel] || null
+  const lideresJornada = dados?.porJornada || []
+  const jogosDaJornada = dados?.jogos.filter(jogo => jogo.jornada_id === jornadaSelecionada) || []
+  const jornadaConcluidaParaMostrar = jogosDaJornada.length > 0 &&
+    jogosDaJornada.every(jogo => jogo.status === 'finished' && jogo.resultado_valido)
+  const estadoLigacao = ligacao.competicaoId === competicaoId ? ligacao.estado : 'a-ligar'
 
   return (
-    
+
     <div className="pl-liga">
       <style>{estilos}</style>
 
@@ -503,6 +445,14 @@ const jornadaConcluidaParaMostrar =
 
         <button
           type="button"
+          className={`pl-liga-filtro ${tipoClassificacao === 'concluidas' ? 'ativo' : ''}`}
+          onClick={() => setTipoClassificacao('concluidas')}
+        >
+          ↕ Após jornadas concluídas
+        </button>
+
+        <button
+          type="button"
           className={
             `pl-liga-filtro ${tipoClassificacao === 'jornada' ? 'ativo' : ''}`
           }
@@ -511,6 +461,38 @@ const jornadaConcluidaParaMostrar =
           📅 Por jornada
         </button>
       </div>
+
+      <div className="pl-liga-resumo">
+        <span className="pl-liga-contagem" role="status">
+          {estadoLigacao === 'SUBSCRIBED'
+            ? 'Ligação automática ativa. Verificação adicional a cada minuto.'
+            : 'Ligação automática indisponível ou a ligar. Verificação a cada minuto.'}
+        </span>
+        <button type="button" className="pl-liga-filtro"
+          disabled={aCarregarAtual || !competicaoId}
+          onClick={() => setRecarregar(valor => valor + 1)}>
+          Atualizar
+        </button>
+      </div>
+
+      {tipoClassificacao === 'geral' && (
+        <p className="pl-liga-subtitulo">
+          Inclui todos os pontos já atribuídos, mesmo durante uma jornada.
+        </p>
+      )}
+
+      {tipoClassificacao === 'concluidas' && !aCarregarAtual && !erroAtual && (
+        <p className="pl-liga-subtitulo">
+          {dados?.ultima
+            ? `Acumulado até à Jornada ${dados.ultima.numero}. `
+            : 'Ainda não há jornadas consecutivas concluídas desde a Jornada 1. '}
+          {dados?.anterior
+            ? `Movimentos face ao acumulado até à Jornada ${dados.anterior.numero}. `
+            : dados?.ultima ? 'As setas aparecem após duas jornadas consecutivas concluídas. ' : ''}
+          Uma jornada incompleta ou em falta impede o avanço desta vista.
+          {' '}Sem seta: sem comparação disponível ou desempate por definir.
+        </p>
+      )}
 
       {tipoClassificacao === 'jornada' && (
         <div className="pl-liga-seletor">
@@ -525,7 +507,8 @@ const jornadaConcluidaParaMostrar =
             id="selecionar-jornada"
             className="pl-liga-select"
             value={jornadaSelecionada}
-            onChange={e => setJornadaSelecionada(e.target.value)}
+            onChange={e => setSelecao({ competicaoId, id: e.target.value })}
+            disabled={aCarregarAtual}
           >
             {jornadas.length === 0 && (
               <option value="">
@@ -556,7 +539,7 @@ const jornadaConcluidaParaMostrar =
 
       {!aCarregarAtual &&
         !erroAtual &&
-        (tipoClassificacao === 'geral' || jornadaSelecionada) && (
+        (tipoClassificacao !== 'jornada' || jornadaSelecionada) && (
           <>
             <div className="pl-liga-resumo">
               <span className="pl-liga-contagem">
@@ -639,7 +622,9 @@ const jornadaConcluidaParaMostrar =
   )}
             {classificacaoVisivel.length === 0 ? (
               <div className="pl-liga-vazio">
-                Ainda não existem jogadores nesta classificação.
+                {tipoClassificacao === 'concluidas' && !dados?.ultima
+                  ? 'A classificação ficará disponível quando a Jornada 1 estiver concluída.'
+                  : 'Ainda não existem jogadores nesta classificação.'}
               </div>
             ) : (
               <div className="pl-liga-tabela-container">
@@ -676,17 +661,45 @@ const jornadaConcluidaParaMostrar =
                             `${classePosicao} ${souEu ? 'pl-liga-eu' : ''}`
                           }
                         >
-                          <td>
-                            <span className="pl-liga-medalha">
-                              {indice === 0
-                                ? '🥇'
-                                : indice === 1
-                                  ? '🥈'
-                                  : indice === 2
-                                    ? '🥉'
-                                    : `${indice + 1}.º`}
-                            </span>
-                          </td>
+                         <td>
+  <span className="pl-liga-medalha">
+    {indice === 0
+      ? '🥇'
+      : indice === 1
+        ? '🥈'
+        : indice === 2
+          ? '🥉'
+          : `${indice + 1}.º`}
+  </span>
+
+{  tipoClassificacao === 'concluidas' &&
+ movimentosParaMostrar.has(jogador.user_id) && (
+  <span
+    title={movimentosParaMostrar.get(jogador.user_id) > 0
+      ? `Subiu ${movimentosParaMostrar.get(jogador.user_id)} posições`
+      : movimentosParaMostrar.get(jogador.user_id) < 0
+        ? `Desceu ${Math.abs(movimentosParaMostrar.get(jogador.user_id))} posições`
+        : 'Manteve a posição'}
+    style={{
+      marginLeft: '8px',
+      fontWeight: 'bold',
+      color:
+        movimentosParaMostrar.get(jogador.user_id) > 0
+          ? '#22c55e'
+          : movimentosParaMostrar.get(jogador.user_id) < 0
+            ? '#ef4444'
+            : '#94a3b8',
+    }}
+  >
+    {movimentosParaMostrar.get(jogador.user_id) > 0
+      ? `↑${movimentosParaMostrar.get(jogador.user_id)}`
+      : movimentosParaMostrar.get(jogador.user_id) < 0
+        ? `↓${Math.abs(movimentosParaMostrar.get(jogador.user_id))}`
+        : '–'}
+  </span>
+)}
+
+</td>
 
                           <td>
                             {jogador.jogador}
