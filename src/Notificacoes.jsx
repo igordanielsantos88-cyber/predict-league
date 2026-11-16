@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import PushNotificacoes from './PushNotificacoes'
 
 const estilos = `
 .pl-notificacoes { color:#e2e8f0; line-height:1.6; }
@@ -159,6 +160,7 @@ export default function Notificacoes() {
   const visiveis = estado.itens?.filter(n => filtro === 'todas' || !n.lida) ?? []
   return <section className="pl-notificacoes" aria-label="As minhas notificações" aria-busy={estado.carregando}>
     <style>{estilos}</style>
+    <PushNotificacoes />
     <div className="pn-topo">
       <span className="pn-contador">{naoLidas == null ? '—' : naoLidas} por ler nos últimos 50 avisos</span>
       <button type="button" disabled={estado.carregando || !!aMarcar} onClick={atualizar}>Atualizar</button>
@@ -183,6 +185,6 @@ export default function Notificacoes() {
       </button>}
     </li>)}</ul>
     <p className="pn-nota">Esta lista atualiza a cada minuto enquanto está aberta e visível. Os avisos refletem o momento em que foram criados; consulta os jogos para veres os dados atuais.</p>
-    <p className="pn-nota">As notificações fora da aplicação ainda não estão ativadas.</p>
+    <p className="pn-nota">O envio automático de notificações fora da aplicação ainda não está ativado.</p>
   </section>
 }

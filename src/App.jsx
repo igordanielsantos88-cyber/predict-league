@@ -1,8 +1,8 @@
-
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import Dashboard from './Dashboard'
 import PainelParticipante from './PainelParticipante'
+import { prepararSaidaPush, concluirSaidaPush, vigiarSessaoPush } from './push'
 
 
 const cores = {
@@ -207,6 +207,10 @@ const estilos = `
 `
 
 function App() {
+  const [aSair, setASair] = useState(false)
+  const [erroSaida, setErroSaida] = useState('')
+  const saidaEmCurso = useRef(false)
+  useEffect(() => vigiarSessaoPush(setErroSaida), [])
   const [pedidoNotificacoes, setPedidoNotificacoes] = useState(0)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -357,19 +361,27 @@ function App() {
   }
 
   async function terminarSessao() {
-    const { error } = await supabase.auth.signOut()
-
-    if (error) {
-      alert('Erro ao terminar sessão: ' + error.message)
-      return
+    if (saidaEmCurso.current) return
+    saidaEmCurso.current = true
+    setASair(true)
+    setErroSaida('')
+    try {
+      await prepararSaidaPush()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw new Error('Não foi possível terminar a sessão. Tenta novamente.')
+      setAdministrador(false)
+      setParticipante(false)
+      setEmail('')
+      setPassword('')
+      setMensagem('')
+      setPedidoNotificacoes(0)
+    } catch (error) {
+      setErroSaida(error.message || 'Não foi possível terminar a sessão.')
+    } finally {
+      concluirSaidaPush()
+      saidaEmCurso.current = false
+      setASair(false)
     }
-
-    setAdministrador(false)
-    setParticipante(false)
-    setEmail('')
-    setPassword('')
-    setMensagem('')
-    setPedidoNotificacoes(0)
   }
 
   if (aVerificarSessao) {
@@ -410,12 +422,14 @@ function App() {
             <button
               type="button"
               className="pl-logout"
+              disabled={aSair}
               onClick={terminarSessao}
             >
-              Sair
+              {aSair ? 'A sair…' : 'Sair'}
             </button>
           </div>
         </header>
+        {erroSaida && <p role="alert" style={{ padding: '12px 28px', color: '#fca5a5' }}>{erroSaida}</p>}
 
         {administrador
           ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} />
