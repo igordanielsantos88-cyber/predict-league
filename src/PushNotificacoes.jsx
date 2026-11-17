@@ -25,7 +25,7 @@ export default function PushNotificacoes() {
           .select('role,approval_status').eq('id', data.user.id).maybeSingle()
         if (!vivo.current || seq !== sequencia.current) return
         if (erroPerfil) throw new Error('Não foi possível verificar o acesso às notificações push.')
-        if (perfil?.role !== 'admin' || perfil.approval_status !== 'approved') {
+        if (perfil?.approval_status !== 'approved') {
           setEstado({ fase: 'oculto' }); return
         }
         const falta = suportePush()
@@ -108,7 +108,7 @@ export default function PushNotificacoes() {
   if (estado.fase === 'oculto') return null
   return <section className="pn-item" aria-label="Notificações neste dispositivo" style={{ marginBottom: 20 }}>
     <h3>🔔 Notificações neste dispositivo</h3>
-    <p className="pn-nota">Fase de teste, disponível apenas ao administrador. Os avisos automáticos ainda não são enviados para fora da aplicação.</p>
+    <p className="pn-nota">Ativa este dispositivo e envia um teste para confirmar a receção. O envio automático para os participantes ainda está em preparação.</p>
     {estado.fase === 'carregar' && <p role="status">A preparar as notificações…</p>}
     {estado.fase === 'pronto' && <>
       <p>{estado.id ? 'Este dispositivo está ativado para testes.' : 'Este dispositivo ainda não está ativado.'}</p>

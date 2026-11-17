@@ -107,8 +107,6 @@ export async function handler(req: Request): Promise<Response> {
     if (erroMembros) return responder(503, { erro: 'Não foi possível verificar a inscrição.' });
     if (!membros?.length) return responder(403, { erro: 'É necessário pertencer a uma competição.' });
 
-    // Nesta primeira fase, até a ativação na interface fica reservada ao administrador.
-    if (perfil.role !== 'admin') return responder(403, { erro: 'As notificações push ainda estão em teste.' });
     if (body.acao === 'configuracao') return responder(200, { publicKey, modo: 'teste' });
     if (typeof body.dispositivoId !== 'string' || !UUID.test(body.dispositivoId)) {
       return responder(400, { erro: 'Dispositivo inválido.' });
