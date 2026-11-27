@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
 const estilos = `
@@ -298,11 +298,18 @@ export default function Jornadas({ competicaoId }) {
   const [fora, setFora] = useState('')
   const [dataJogo, setDataJogo] = useState('')
   const [resultadoId, setResultadoId] = useState(null)
+  const [resultadoEmRevisao, setResultadoEmRevisao] = useState(null)
+  const [erroResultado, setErroResultado] = useState('')
   const [golosCasa, setGolosCasa] = useState('')
   const [golosFora, setGolosFora] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState('')
   const [aCarregar, setACarregar] = useState(true)
+  const focoResultado = useRef(null)
+
+  useEffect(() => {
+    if (resultadoId) focoResultado.current?.focus()
+  }, [resultadoId, resultadoEmRevisao])
 
   async function atualizarListas(id) {
     const [j, m] = await Promise.all([
@@ -430,33 +437,34 @@ export default function Jornadas({ competicaoId }) {
     })
   }
 
-  async function guardarResultado(jogo) {
+  function reverResultado(jogo) {
+    const casa = Number(golosCasa)
+    const fora = Number(golosFora)
+    if (golosCasa === '' || golosFora === '' || !Number.isInteger(casa) ||
+      !Number.isInteger(fora) || casa < 0 || fora < 0) {
+      setErroResultado('Indica dois resultados inteiros não negativos.')
+      return
+    }
+    if (new Date(jogo.kickoff) > new Date()) {
+      setErroResultado('O jogo ainda não começou.')
+      return
+    }
+
+    setErroResultado('')
+    setResultadoEmRevisao({ jogoId: jogo.id, casa, fora })
+  }
+
+  async function guardarResultado(jogo, resultado) {
+    if (resultado.jogoId !== jogo.id) return
+
     await executar(async () => {
-      const a = Number(golosCasa)
-      const b = Number(golosFora)
-
-      if (
-        golosCasa === '' ||
-        golosFora === '' ||
-        !Number.isInteger(a) ||
-        !Number.isInteger(b) ||
-        a < 0 ||
-        b < 0
-      ) {
-        throw new Error(
-          'Indica dois resultados inteiros não negativos.'
-        )
-      }
-
-      if (new Date(jogo.kickoff) > new Date()) {
-        throw new Error('O jogo ainda não começou.')
-      }
+      if (new Date(jogo.kickoff) > new Date()) throw new Error('O jogo ainda não começou.')
 
       const { error } = await supabase
         .from('matches')
         .update({
-          home_score: a,
-          away_score: b,
+          home_score: resultado.casa,
+          away_score: resultado.fora,
           status: 'finished',
         })
         .eq('id', jogo.id)
@@ -464,6 +472,7 @@ export default function Jornadas({ competicaoId }) {
 
       if (error) throw error
 
+      setResultadoEmRevisao(null)
       setResultadoId(null)
     }, 'Resultado guardado!')
   }
@@ -669,7 +678,10 @@ export default function Jornadas({ competicaoId }) {
                     <button
                       type="button"
                       className="pl-jornadas-botao-secundario"
+                      disabled={ocupado}
                       onClick={() => {
+                        setErroResultado('')
+                        setResultadoEmRevisao(null)
                         setResultadoId(
                           resultadoId === jogo.id ? null : jogo.id
                         )
@@ -691,52 +703,82 @@ export default function Jornadas({ competicaoId }) {
 
                   {resultadoId === jogo.id && (
                     <div className="pl-jornadas-form-extra">
-                      <h4>🏁 Resultado do jogo</h4>
+                      {resultadoEmRevisao?.jogoId === jogo.id ? (
+                        <>
+                          <h4 ref={focoResultado} tabIndex={-1}>Confirmar resultado</h4>
+                          <p role="status">
+                            {jogo.home_team} <strong>{resultadoEmRevisao.casa} – {resultadoEmRevisao.fora}</strong> {jogo.away_team}
+                          </p>
+                          <div className="pl-jornadas-acoes">
+                            <button type="button" className="pl-jornadas-botao-secundario"
+                              disabled={ocupado} onClick={() => setResultadoEmRevisao(null)}>
+                              Voltar a editar
+                            </button>
+                            <button type="button" className="pl-jornadas-botao"
+                              disabled={ocupado} onClick={() => guardarResultado(jogo, resultadoEmRevisao)}>
+                              {ocupado ? 'A publicar…' : 'Confirmar publicação'}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <h4>🏁 Resultado do jogo</h4>
 
-                      <div className="pl-jornadas-campos">
-                        <div className="pl-jornadas-campo">
-                          <label htmlFor={`casa-${jogo.id}`}>
-                            Golos — {jogo.home_team}
-                          </label>
+                          <div className="pl-jornadas-campos">
+                            <div className="pl-jornadas-campo">
+                              <label htmlFor={`casa-${jogo.id}`}>
+                                Golos — {jogo.home_team}
+                              </label>
 
-                          <input
-                            id={`casa-${jogo.id}`}
-                            className="pl-jornadas-input"
-                            style={{ width: '90px' }}
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={golosCasa}
-                            onChange={e => setGolosCasa(e.target.value)}
-                          />
-                        </div>
+                              <input
+                                id={`casa-${jogo.id}`}
+                                ref={focoResultado}
+                                className="pl-jornadas-input"
+                                style={{ width: '90px' }}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={golosCasa}
+                                onChange={e => {
+                                  setGolosCasa(e.target.value)
+                                  setErroResultado('')
+                                }}
+                              />
+                            </div>
 
-                        <div className="pl-jornadas-campo">
-                          <label htmlFor={`fora-${jogo.id}`}>
-                            Golos — {jogo.away_team}
-                          </label>
+                            <div className="pl-jornadas-campo">
+                              <label htmlFor={`fora-${jogo.id}`}>
+                                Golos — {jogo.away_team}
+                              </label>
 
-                          <input
-                            id={`fora-${jogo.id}`}
-                            className="pl-jornadas-input"
-                            style={{ width: '90px' }}
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={golosFora}
-                            onChange={e => setGolosFora(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                              <input
+                                id={`fora-${jogo.id}`}
+                                className="pl-jornadas-input"
+                                style={{ width: '90px' }}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={golosFora}
+                                onChange={e => {
+                                  setGolosFora(e.target.value)
+                                  setErroResultado('')
+                                }}
+                              />
+                            </div>
+                          </div>
 
-                      <button
-                        type="button"
-                        className="pl-jornadas-botao"
-                        disabled={ocupado}
-                        onClick={() => guardarResultado(jogo)}
-                      >
-                        💾 Guardar resultado
-                      </button>
+                          {erroResultado && <p role="alert">{erroResultado}</p>}
+
+                          <button
+                            type="button"
+                            className="pl-jornadas-botao"
+                            disabled={ocupado}
+                            onClick={() => reverResultado(jogo)}
+                          >
+                            Rever resultado
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

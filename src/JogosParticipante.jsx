@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import { atualizarRascunho, lerRascunho, removerRascunhoEnviado } from './rascunhosPrognosticos'
 
 const estilos = `
   .pl-jogos {
@@ -329,6 +330,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   const [jogoAberto, setJogoAberto] = useState(null)
   const [aCarregarPrognosticos, setACarregarPrognosticos] = useState(null)
   const cartaoDaLigacao = useRef(null)
+  const contaDosPalpites = useRef(null)
 
   useEffect(() => {
     if (!jogoDaLigacao || aCarregar || erro) return
@@ -443,7 +445,13 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
           }
         }
 
-        setPalpites(palpitesGuardados)
+        const palpitesComRascunhos = { ...palpitesGuardados }
+        for (const jogo of data || []) {
+          const rascunho = lerRascunho(user.id, jogo, palpitesGuardados[jogo.id])
+          if (rascunho) palpitesComRascunhos[jogo.id] = rascunho
+        }
+        contaDosPalpites.current = user.id
+        setPalpites(palpitesComRascunhos)
         setPrognosticosGuardados(palpitesGuardados)
 
         if ((data || []).length > 0) {
@@ -480,15 +488,16 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   }, [competicaoId])
 
   function alterarPalpite(jogoId, equipa, golos) {
-    setPalpites(anteriores => ({
-      ...anteriores,
-      [jogoId]: { ...anteriores[jogoId], [equipa]: golos },
-    }))
+    const palpite = { ...palpites[jogoId], [equipa]: golos }
+    atualizarRascunho(contaDosPalpites.current, jogoId, palpite, prognosticosGuardados[jogoId])
+    setPalpites(anteriores => ({ ...anteriores, [jogoId]: palpite }))
     setEstadoGravacao(null)
   }
 
   function reporPalpite(jogoId) {
-    setPalpites(anteriores => ({ ...anteriores, [jogoId]: prognosticosGuardados[jogoId] }))
+    const guardado = prognosticosGuardados[jogoId]
+    atualizarRascunho(contaDosPalpites.current, jogoId, guardado, guardado)
+    setPalpites(anteriores => ({ ...anteriores, [jogoId]: guardado }))
     setEstadoGravacao(null)
   }
 
@@ -497,7 +506,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
     setEstadoGravacao(null)
     try {
       const { data: { user }, error: erroUtilizador } = await supabase.auth.getUser()
-      if (erroUtilizador || !user) {
+      if (erroUtilizador || !user || user.id !== contaDosPalpites.current) {
         setEstadoGravacao({ alvo, erro: true, texto: 'Inicia sessão para guardar os prognósticos.' })
         return
       }
@@ -507,6 +516,9 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
         .upsert(dados.map(dado => ({ ...dado, user_id: user.id })), { onConflict: 'match_id,user_id' })
       if (error) throw error
 
+      for (const { match_id: jogoId } of dados) {
+        removerRascunhoEnviado(user.id, jogoId, palpites[jogoId], prognosticosGuardados[jogoId])
+      }
       const guardados = Object.fromEntries(dados.map(dado => [
         dado.match_id, { casa: String(dado.home_goals), fora: String(dado.away_goals) },
       ]))

@@ -8,9 +8,10 @@ const estilos = `
 .pl-notificacoes .pn-topo,.pl-notificacoes .pn-acoes { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 .pl-notificacoes .pn-topo { justify-content:space-between; }
 .pl-notificacoes .pn-contador { padding:6px 12px; border:1px solid #8f722e; border-radius:20px; color:#f0d477; }
-.pl-notificacoes button { padding:10px 14px; border:1px solid #594821; border-radius:9px; color:#e8c76a; background:#1b2535; cursor:pointer; font:inherit; }
+.pl-notificacoes button,.pl-notificacoes .pn-ligacao { padding:10px 14px; border:1px solid #594821; border-radius:9px; color:#e8c76a; background:#1b2535; cursor:pointer; font:inherit; }
+.pl-notificacoes .pn-ligacao { text-decoration:none; }
 .pl-notificacoes button:disabled { opacity:.55; cursor:wait; }
-.pl-notificacoes button:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
+.pl-notificacoes button:focus-visible,.pl-notificacoes .pn-ligacao:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
 .pl-notificacoes button[aria-pressed=true] { background:#d4af37; color:#211806; }
 .pl-notificacoes .pn-nota { color:#a7b5c9; font-size:14px; }
 .pl-notificacoes .pn-lista { list-style:none; padding:0; display:grid; gap:12px; }
@@ -19,7 +20,7 @@ const estilos = `
 .pl-notificacoes h3 { margin:0 0 8px; color:#e8c76a; font-size:17px; }
 .pl-notificacoes .pn-item p { white-space:pre-wrap; margin:10px 0; }
 .pl-notificacoes .pn-meta { color:#a7b5c9; font-size:13px; display:flex; flex-wrap:wrap; gap:12px; }
-.pl-notificacoes .pn-item button { margin-top:10px; }
+.pl-notificacoes .pn-item .pn-acoes { margin-top:10px; }
 .pl-notificacoes .pn-erro { color:#fca5a5; }
 @media(max-width:600px) { .pl-notificacoes .pn-item { padding:14px; } }
 `
@@ -40,6 +41,8 @@ function categoria(tipo) {
   if (tipo === 'match_reminder' || tipo.startsWith('reminder_')) return 'Lembrete'
   return 'Aviso'
 }
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default function Notificacoes() {
   const [estado, setEstado] = useState({ itens: null, erro: '', carregando: true })
@@ -76,7 +79,22 @@ export default function Notificacoes() {
         const resultado = await supabase.rpc('obter_notificacoes').abortSignal(signal)
         if (!ativo || atual !== pedido) return
         if (resultado.error) throw new Error('Não foi possível carregar as notificações. Tenta novamente.')
-        itens = validarNotificacoes(resultado.data)
+        const avisos = validarNotificacoes(resultado.data)
+        const ids = avisos.filter(aviso => uuid.test(aviso.id)).map(aviso => aviso.id)
+        const ligacoes = new Map()
+        if (ids.length) {
+          const { data: jogos } = await supabase
+            .rpc('obter_jogos_das_notificacoes', { p_notificacao_ids: ids }).abortSignal(signal)
+          if (!ativo || atual !== pedido) return
+          if (Array.isArray(jogos)) {
+            for (const jogo of jogos) {
+              if (typeof jogo?.jogo_id === 'string' && uuid.test(jogo.jogo_id)) {
+                ligacoes.set(jogo.notificacao_id, jogo.jogo_id)
+              }
+            }
+          }
+        }
+        itens = avisos.map(aviso => ({ ...aviso, jogoId: ligacoes.get(aviso.id) }))
         setEstado({ itens, erro: '', carregando: false })
       } catch (error) {
         if (ativo && atual === pedido) {
@@ -180,9 +198,12 @@ export default function Notificacoes() {
         <time dateTime={n.criada_em}>{new Date(n.criada_em).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</time>
       </div>
       <p>{n.mensagem}</p>
-      {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar(n.id)}>
-        {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
-      </button>}
+      {(!n.lida || n.jogoId) && <div className="pn-acoes">
+        {n.jogoId && <a className="pn-ligacao" href={`/?jogo=${n.jogoId}`}>Ver jogo</a>}
+        {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar(n.id)}>
+          {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
+        </button>}
+      </div>}
     </li>)}</ul>
     <p className="pn-nota">Esta lista atualiza a cada minuto enquanto está aberta e visível. Os avisos refletem o momento em que foram criados; consulta os jogos para veres os dados atuais.</p>
   </section>
