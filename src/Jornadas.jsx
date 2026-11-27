@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import HistoricoResultado from './HistoricoResultado'
 import ImpactoResultado from './ImpactoResultado'
+import CalendarioLigaPortugal from './CalendarioLigaPortugal'
+import ImportarJogosOficiais from './ImportarJogosOficiais'
 
 const estilos = `
   .pl-jornadas {
@@ -563,6 +565,10 @@ export default function Jornadas({ competicaoId }) {
         Organiza os jogos da época ativa, escolhe os dois
         jogos bónus de cada jornada e regista os resultados.
       </p>
+
+      <CalendarioLigaPortugal key={epoca.id} epocaId={epoca.id} atualizarJogos={() => atualizarListas(epoca.id)} />
+      <ImportarJogosOficiais key={`oficiais:${epoca.id}`} epocaId={epoca.id} jornadas={jornadas}
+        atualizarJogos={() => atualizarListas(epoca.id)} />
 
       <section className="pl-jornadas-painel">
         <h3>➕ Criar nova jornada</h3>
