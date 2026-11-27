@@ -379,7 +379,7 @@ export default function HallDaFama({ competicaoId }) {
   }
 
   return (
-    <div className="pl-hall">
+    <div className="pl-hall pl-secao">
       <style>{estilos}</style>
 
       <h1 className="pl-hall-titulo">

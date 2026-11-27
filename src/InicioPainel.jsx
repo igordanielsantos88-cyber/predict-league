@@ -1,3 +1,5 @@
+import EmblemaEquipa from './EmblemaEquipa'
+
 const horaLisboa = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
 })
@@ -12,9 +14,15 @@ export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, ab
         {jogo ? (
           <>
             <div className="pl-proximo-equipas">
-              <strong>{jogo.home_team}</strong>
+              <div className="pl-proximo-equipa">
+                <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
+                <strong>{jogo.home_team}</strong>
+              </div>
               <span>vs</span>
-              <strong>{jogo.away_team}</strong>
+              <div className="pl-proximo-equipa">
+                <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
+                <strong>{jogo.away_team}</strong>
+              </div>
             </div>
             <div className="pl-proximo-rodape">
               <p>Prazo até <time dateTime={jogo.kickoff}>{horaLisboa.format(new Date(jogo.kickoff))}</time></p>
@@ -63,6 +71,10 @@ export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, ab
             {seguintes.map(item => (
               <li key={item.id}>
                 <button type="button" onClick={() => abrir('proximo-jogo', item.id)}>
+                  <span className="pl-agenda-emblemas">
+                    <EmblemaEquipa nome={item.home_team} origem={item.home_crest} />
+                    <EmblemaEquipa nome={item.away_team} origem={item.away_crest} />
+                  </span>
                   <span className="pl-agenda-jogo">
                     <strong>{item.home_team} vs {item.away_team}</strong>
                     <time dateTime={item.kickoff}>{horaLisboa.format(new Date(item.kickoff))}</time>

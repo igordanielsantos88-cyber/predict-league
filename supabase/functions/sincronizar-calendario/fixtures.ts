@@ -1,4 +1,4 @@
-type Equipa = { name?: string; shortName?: string; tla?: string };
+type Equipa = { name?: string; shortName?: string; tla?: string; crest?: string };
 type JogoApi = {
   id?: number;
   matchday?: number;
@@ -17,6 +17,11 @@ function nomes(equipa: Equipa): string[] {
     reduzir(nome),
     reduzir(nome.replace(/\b(?:fc|cf|sc|cd|ac|cp|sl)\b/gi, '')),
   ]).filter(Boolean))];
+}
+
+function emblema(valor: unknown) {
+  return typeof valor === 'string' && /^https:\/\/crests\.football-data\.org\/[a-z0-9_-]{1,100}\.(svg|png|webp)$/i.test(valor)
+    ? valor : null;
 }
 
 export function validarCalendario(dados: unknown, ano: number, codigo = 'PPL', exigirJornada = true) {
@@ -46,6 +51,7 @@ export function validarCalendario(dados: unknown, ano: number, codigo = 'PPL', e
       estado: jogo.status, casa: jogo.homeTeam.shortName?.trim() || jogo.homeTeam.name.trim(),
       fora: jogo.awayTeam.shortName?.trim() || jogo.awayTeam.name.trim(),
       casas: nomes(jogo.homeTeam), foras: nomes(jogo.awayTeam),
+      emblema_casa: emblema(jogo.homeTeam.crest), emblema_fora: emblema(jogo.awayTeam.crest),
     };
   });
 }

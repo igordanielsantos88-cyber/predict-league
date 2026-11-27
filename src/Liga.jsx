@@ -149,7 +149,7 @@ const estilos = `
   .pl-liga-tabela {
     width: 100%;
     border-collapse: collapse;
-    min-width: 560px;
+    min-width: 445px;
   }
 
   .pl-liga-tabela th {
@@ -206,10 +206,6 @@ const estilos = `
     color: #f0d477;
     font-size: 17px;
     font-weight: bold;
-  }
-
-  .pl-liga-medalha {
-    font-size: 22px;
   }
 
   .pl-liga-eu-etiqueta {
@@ -516,17 +512,10 @@ function Liga({ competicaoId, jornadaInicial }) {
 
   return (
 
-    <div className="pl-liga">
+    <div className="pl-liga pl-secao">
       <style>{estilos}</style>
 
-      <h2 className="pl-liga-titulo">
-  🏆 Classificação Predict League
-      </h2>
-
-      <p className="pl-liga-subtitulo">
-        Acompanha a luta pelo primeiro lugar e consulta
-        a classificação geral ou de cada jornada.
-      </p>
+      <h2 className="pl-liga-titulo">Classificação</h2>
 
       <div className="pl-liga-filtros">
         <button
@@ -534,6 +523,7 @@ function Liga({ competicaoId, jornadaInicial }) {
           className={
             `pl-liga-filtro ${tipoClassificacao === 'geral' ? 'ativo' : ''}`
           }
+          aria-pressed={tipoClassificacao === 'geral'}
           onClick={() => setTipoClassificacao('geral')}
         >
           🏆 Geral
@@ -542,6 +532,7 @@ function Liga({ competicaoId, jornadaInicial }) {
         <button
           type="button"
           className={`pl-liga-filtro ${tipoClassificacao === 'concluidas' ? 'ativo' : ''}`}
+          aria-pressed={tipoClassificacao === 'concluidas'}
           onClick={() => setTipoClassificacao('concluidas')}
         >
           ↕ Após jornadas concluídas
@@ -552,6 +543,7 @@ function Liga({ competicaoId, jornadaInicial }) {
           className={
             `pl-liga-filtro ${tipoClassificacao === 'jornada' ? 'ativo' : ''}`
           }
+          aria-pressed={tipoClassificacao === 'jornada'}
           onClick={() => setTipoClassificacao('jornada')}
         >
           📅 Por jornada
@@ -561,8 +553,8 @@ function Liga({ competicaoId, jornadaInicial }) {
       <div className="pl-liga-resumo">
         <span className="pl-liga-contagem" role="status">
           {estadoLigacao === 'SUBSCRIBED'
-            ? 'Ligação automática ativa. Verificação adicional a cada minuto.'
-            : 'Ligação automática indisponível ou a ligar. Verificação a cada minuto.'}
+            ? 'Atualização em direto'
+            : 'Atualização a cada minuto'}
         </span>
         <button type="button" className="pl-liga-filtro"
           disabled={aCarregarAtual || !competicaoId}
@@ -583,10 +575,8 @@ function Liga({ competicaoId, jornadaInicial }) {
             ? `Acumulado até à Jornada ${dados.ultima.numero}. `
             : 'Ainda não há jornadas consecutivas concluídas desde a Jornada 1. '}
           {dados?.anterior
-            ? `Movimentos face ao acumulado até à Jornada ${dados.anterior.numero}. `
-            : dados?.ultima ? 'As setas aparecem após duas jornadas consecutivas concluídas. ' : ''}
-          Uma jornada incompleta ou em falta impede o avanço desta vista.
-          {' '}Sem seta: sem comparação disponível ou desempate por definir.
+            ? `Movimentos desde a Jornada ${dados.anterior.numero}.`
+            : dados?.ultima ? 'As setas aparecem após duas jornadas concluídas.' : ''}
         </p>
       )}
 
@@ -736,10 +726,10 @@ function Liga({ competicaoId, jornadaInicial }) {
                     <tr>
                       <th>Pos.</th>
                       <th>Jogador</th>
-                      <th>Jogos</th>
+                      <th className="pl-liga-coluna-extra">Jogos</th>
                       <th>Pontos</th>
                       <th>Exatos</th>
-                      <th>Precisão</th>
+                      <th className="pl-liga-coluna-extra">Precisão</th>
                     </tr>
                   </thead>
 
@@ -747,6 +737,8 @@ function Liga({ competicaoId, jornadaInicial }) {
                     {classificacaoVisivel.map((jogador, indice) => {
                       const souEu =
                         jogador.user_id === utilizadorAtual
+
+                      const movimento = tipoClassificacao === 'concluidas' ? movimentosParaMostrar.get(jogador.user_id) : null
 
                       const classePosicao =
                         indice === 0
@@ -764,45 +756,18 @@ function Liga({ competicaoId, jornadaInicial }) {
                             `${classePosicao} ${souEu ? 'pl-liga-eu' : ''}`
                           }
                         >
-                         <td>
-  <span className="pl-liga-medalha">
-    {indice === 0
-      ? '🥇'
-      : indice === 1
-        ? '🥈'
-        : indice === 2
-          ? '🥉'
-          : `${indice + 1}.º`}
-  </span>
-
-{  tipoClassificacao === 'concluidas' &&
- movimentosParaMostrar.has(jogador.user_id) && (
-  <span
-    title={movimentosParaMostrar.get(jogador.user_id) > 0
-      ? `Subiu ${movimentosParaMostrar.get(jogador.user_id)} posições`
-      : movimentosParaMostrar.get(jogador.user_id) < 0
-        ? `Desceu ${Math.abs(movimentosParaMostrar.get(jogador.user_id))} posições`
-        : 'Manteve a posição'}
-    style={{
-      marginLeft: '8px',
-      fontWeight: 'bold',
-      color:
-        movimentosParaMostrar.get(jogador.user_id) > 0
-          ? '#22c55e'
-          : movimentosParaMostrar.get(jogador.user_id) < 0
-            ? '#ef4444'
-            : '#94a3b8',
-    }}
-  >
-    {movimentosParaMostrar.get(jogador.user_id) > 0
-      ? `↑${movimentosParaMostrar.get(jogador.user_id)}`
-      : movimentosParaMostrar.get(jogador.user_id) < 0
-        ? `↓${Math.abs(movimentosParaMostrar.get(jogador.user_id))}`
-        : '–'}
-  </span>
-)}
-
-</td>
+                          <td>
+                            <div className="pl-liga-posicao">
+                              <span className="pl-liga-posicao-numero">{indice + 1}.º</span>
+                              {movimento != null && <span
+                                className={`pl-liga-movimento ${movimento > 0 ? 'subiu' : movimento < 0 ? 'desceu' : ''}`}
+                                title={descreverMovimento(indice + 1 + movimento, indice + 1)}
+                              >
+                                <span className="pl-liga-sr">{descreverMovimento(indice + 1 + movimento, indice + 1)}</span>
+                                <span aria-hidden="true">{movimento > 0 ? `↑${movimento}` : movimento < 0 ? `↓${-movimento}` : '–'}</span>
+                              </span>}
+                            </div>
+                          </td>
 
                           <td>
                             {jogador.jogador}
@@ -811,9 +776,10 @@ function Liga({ competicaoId, jornadaInicial }) {
                                 TU
                               </span>
                             )}
+                            <small className="pl-liga-detalhe-movel">{jogador.jogos_pontuados} jogos · {calcularPrecisao(jogador)} precisão</small>
                           </td>
 
-                          <td>{jogador.jogos_pontuados}</td>
+                          <td className="pl-liga-coluna-extra">{jogador.jogos_pontuados}</td>
 
                           <td className="pl-liga-pontos">
                             {jogador.pontos}
@@ -821,7 +787,7 @@ function Liga({ competicaoId, jornadaInicial }) {
 
                           <td>{jogador.resultados_exatos}</td>
 
-                          <td>{calcularPrecisao(jogador)}</td>
+                          <td className="pl-liga-coluna-extra">{calcularPrecisao(jogador)}</td>
                         </tr>
                       )
                     })}

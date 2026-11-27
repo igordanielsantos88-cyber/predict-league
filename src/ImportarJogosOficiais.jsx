@@ -43,6 +43,7 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
   const [destinos, setDestinos] = useState({})
   const [relatorio, setRelatorio] = useState(null)
   const [erro, setErro] = useState('')
+  const [nota, setNota] = useState('')
   const [ocupado, setOcupado] = useState(false)
 
   function limparPrevia() {
@@ -51,12 +52,14 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
     setDestinos({})
     setRelatorio(null)
     setErro('')
+    setNota('')
   }
 
   async function executar(acao) {
     if (ocupado) return
     setOcupado(true)
     setErro('')
+    setNota('')
     setRelatorio(null)
     if (acao === 'listar') {
       setJogos(null)
@@ -71,6 +74,11 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
         body.destinos = Object.fromEntries(selecionados.map(id => [id, destinos[id]]))
       }
       const { data, error } = await supabase.functions.invoke('sincronizar-calendario', { body })
+      if (!error && acao === 'emblemas' && Number.isInteger(data?.emblemasAtualizados)) {
+        const total = data.emblemasAtualizados
+        setNota(total === 1 ? 'Emblemas atualizados em 1 jogo.' : `Emblemas atualizados em ${total} jogos.`)
+        return
+      }
       if (error || !Array.isArray(data?.jogos)) {
         const resposta = error?.context instanceof Response ? await error.context.json().catch(() => null) : null
         throw new Error(resposta?.erro || 'Não foi possível consultar os jogos oficiais.')
@@ -117,11 +125,14 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
           <button type="submit" className="pl-jornadas-botao-secundario" disabled={ocupado}>
             Procurar jogos
           </button>
+          <button type="button" className="pl-jornadas-botao-secundario" disabled={ocupado || !ano}
+            onClick={() => executar('emblemas')}>Atualizar emblemas</button>
         </div>
       </form>
       <p>Mostra os jogos com hora confirmada nos próximos 45 dias. Podes importar jogos de competições diferentes para a mesma jornada.</p>
       {ocupado && <p role="status">A processar jogos…</p>}
       {erro && <p role="alert">{erro}</p>}
+      {nota && <p role="status">{nota}</p>}
       {jogos?.length === 0 && <p role="status">Sem jogos com hora confirmada neste intervalo.</p>}
       {jogos?.length > 0 && (
         <fieldset disabled={ocupado}>

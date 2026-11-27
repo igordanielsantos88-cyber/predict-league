@@ -222,7 +222,7 @@ export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
 
   const naoLidas = estado.itens?.filter(n => !n.lida).length
   const visiveis = estado.itens?.filter(n => filtro === 'todas' || !n.lida) ?? []
-  return <section className="pl-notificacoes" aria-label="As minhas notificações" aria-busy={estado.carregando}>
+  return <section className="pl-notificacoes pl-secao" aria-label="As minhas notificações" aria-busy={estado.carregando}>
     <style>{estilos}</style>
     <PushNotificacoes />
     <PreferenciasPush />

@@ -150,7 +150,7 @@ export default function Duelo({ competicaoId }) {
   }
 
   return (
-    <div className="pl-duelo">
+    <div className="pl-duelo pl-secao">
       <style>{estilos}</style>
       <h2>Frente a frente</h2>
       <p className="pl-duelo-nota">Compara o teu desempenho com outro participante. Esta comparação não atribui pontos extra nem altera a classificação.</p>

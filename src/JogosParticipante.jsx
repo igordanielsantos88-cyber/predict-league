@@ -1,3 +1,4 @@
+import EmblemaEquipa from './EmblemaEquipa'
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
@@ -437,7 +438,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
 
         const { data, error } = await supabase
           .from('matches')
-          .select('id, home_team, away_team, kickoff, is_bonus, jornada_id, status, home_score, away_score')
+          .select('id, home_team, away_team, home_crest, away_crest, kickoff, is_bonus, jornada_id, status, home_score, away_score')
           .eq('competition_id', competicaoId)
           .eq('season_id', epoca.id)
           .order('kickoff', { ascending: true })
@@ -836,6 +837,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
 
                     <div className="pl-jogo-equipas">
                       <span className="pl-jogo-equipa">
+                        <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
                         {jogo.home_team}
                       </span>
 
@@ -846,6 +848,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                       ) : <span className="pl-jogo-versus">VS</span>}
 
                       <span className="pl-jogo-equipa">
+                        <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
                         {jogo.away_team}
                       </span>
                     </div>

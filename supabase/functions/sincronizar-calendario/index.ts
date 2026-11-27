@@ -95,7 +95,7 @@ Deno.serve(async req => {
   }
 
   if (body.acao != null) {
-    if (agendado || !['listar', 'importar'].includes(body.acao) || !competicaoValida(body.competicao) ||
+    if (agendado || !['listar', 'importar', 'emblemas'].includes(body.acao) || !competicaoValida(body.competicao) ||
         !Number.isInteger(body.ano) || body.ano! < 2000 || body.ano! > 2100) {
       return responder(400, { erro: 'Consulta de competições inválida.' });
     }
@@ -139,8 +139,15 @@ Deno.serve(async req => {
         return responder(502, { erro });
       }
       const agora = Date.now();
-      const jogos = validarCalendario(await resposta.json(), body.ano!, codigo, false)
-        .filter(jogo => jogo.estado === 'TIMED' && jogo.hora &&
+      const calendario = validarCalendario(await resposta.json(), body.ano!, codigo, false);
+      if (body.acao === 'emblemas') {
+        const { data, error } = await db.rpc('guardar_emblemas_calendario', {
+          p_epoca: body.epocaId, p_competicao: body.competicao, p_jogos: calendario,
+        });
+        return error ? responder(503, { erro: 'Não foi possível atualizar os emblemas.' })
+          : responder(200, { emblemasAtualizados: data });
+      }
+      const jogos = calendario.filter(jogo => jogo.estado === 'TIMED' && jogo.hora &&
           Date.parse(jogo.hora) > agora && Date.parse(jogo.hora) <= agora + 45 * 86400000);
       if (body.acao === 'listar') {
         return responder(200, { jogos: jogos.map(({ id, ronda, hora, casa, fora }) => ({ id, ronda, hora, casa, fora })) });
@@ -158,6 +165,9 @@ Deno.serve(async req => {
         p_epoca: body.epocaId, p_jornada: body.jornadaId, p_competicao: body.competicao, p_jogos: selecionados,
       });
       if (error) return responder(409, { erro: 'Não foi possível importar. Confirma se a jornada pertence à época ativa.' });
+      await db.rpc('guardar_emblemas_calendario', {
+        p_epoca: body.epocaId, p_competicao: body.competicao, p_jogos: selecionados,
+      });
       return responder(200, data);
     } catch {
       return responder(502, { erro: 'Não foi possível obter os jogos da Football-Data.org.' });
@@ -194,6 +204,9 @@ Deno.serve(async req => {
       p_fonte_em: fonteEm,
     });
     if (error) return responder(409, { erro: 'Não foi possível sincronizar. Confirma a configuração da época.' });
+    if (agendado || body.previa === false) {
+      await db.rpc('guardar_emblemas_calendario', { p_epoca: body.epocaId, p_competicao: 'PPL', p_jogos: jogos });
+    }
     return responder(200, data);
   } catch {
     return responder(502, { erro: 'Não foi possível obter um calendário válido da Football-Data.org.' });

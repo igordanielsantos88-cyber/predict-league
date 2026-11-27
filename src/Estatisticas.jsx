@@ -318,7 +318,7 @@ export default function Estatisticas({ competicaoId }) {
   ] : []
 
   return (
-    <div className="pl-estatisticas">
+    <div className="pl-estatisticas pl-secao">
       <style>{estilos}</style>
       <h2 className="pl-estatisticas-titulo">📊 As minhas estatísticas</h2>
       <p className="pl-estatisticas-subtitulo">Acompanha os teus pontos e acertos, jornada a jornada.</p>

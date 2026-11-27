@@ -140,7 +140,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
       if (resultadoEpoca.data?.id) {
         const { data: jogos, error: erroJogos } = await supabase
           .from('matches')
-          .select('id,home_team,away_team,kickoff')
+          .select('id,home_team,away_team,home_crest,away_crest,kickoff')
           .eq('competition_id', competicaoId)
           .eq('season_id', resultadoEpoca.data.id)
           .eq('status', 'scheduled')
@@ -244,9 +244,9 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
         <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} outras />
       ) : (
         <main className="pl-content">
-          <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
+          {pagina !== 'liga' && <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
             {secaoAtual?.icone} {secaoAtual?.nome}
-          </h2>
+          </h2>}
           {estaDisponivel(pagina)
             ? <SecaoCarregavel key={pagina}>{componentes[pagina]}</SecaoCarregavel>
             : <p>A aguardar uma competição ativa.</p>}
