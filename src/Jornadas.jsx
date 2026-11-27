@@ -567,7 +567,7 @@ export default function Jornadas({ competicaoId }) {
       </p>
 
       <CalendarioLigaPortugal key={epoca.id} epocaId={epoca.id} atualizarJogos={() => atualizarListas(epoca.id)} />
-      <ImportarJogosOficiais key={`oficiais:${epoca.id}`} epocaId={epoca.id} jornadas={jornadas}
+      <ImportarJogosOficiais key={`oficiais:${epoca.id}`} epocaId={epoca.id} jornadas={jornadas} jogosDaEpoca={jogos}
         atualizarJogos={() => atualizarListas(epoca.id)} />
 
       <section className="pl-jornadas-painel">

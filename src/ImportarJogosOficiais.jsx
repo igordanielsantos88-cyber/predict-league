@@ -21,6 +21,8 @@ const resultados = {
   criado: 'Importado',
   associado: 'Associado ao jogo existente',
   existente: 'Já importado',
+  corrigido: 'Cópia removida. O jogo escolhido e os seus prognósticos foram mantidos.',
+  protegido: 'A cópia já começou, tem prognósticos, resultado ou bónus. Ambos os jogos foram mantidos.',
   rever: 'O jogo já começou ou a correspondência precisa de revisão.',
   indisponivel: 'Horário deixou de estar disponível.',
 }
@@ -30,12 +32,13 @@ function anoInicial() {
   return String(agora.getFullYear() - (agora.getMonth() < 6 ? 1 : 0))
 }
 
-export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogos }) {
+export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca, atualizarJogos }) {
   const [competicao, setCompeticao] = useState('PL')
   const [ano, setAno] = useState(anoInicial)
   const [jornada, setJornada] = useState('')
   const [jogos, setJogos] = useState(null)
   const [selecionados, setSelecionados] = useState([])
+  const [destinos, setDestinos] = useState({})
   const [relatorio, setRelatorio] = useState(null)
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
@@ -43,6 +46,7 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
   function limparPrevia() {
     setJogos(null)
     setSelecionados([])
+    setDestinos({})
     setRelatorio(null)
     setErro('')
   }
@@ -55,12 +59,14 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
     if (acao === 'listar') {
       setJogos(null)
       setSelecionados([])
+      setDestinos({})
     }
     try {
       const body = { acao, epocaId, competicao, ano: Number(ano) }
       if (acao === 'importar') {
         body.jornadaId = jornada
         body.ids = selecionados
+        body.destinos = Object.fromEntries(selecionados.map(id => [id, destinos[id]]))
       }
       const { data, error } = await supabase.functions.invoke('sincronizar-calendario', { body })
       if (error || !Array.isArray(data?.jogos)) {
@@ -72,6 +78,7 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
       } else {
         setRelatorio(data.jogos)
         setSelecionados([])
+        setDestinos({})
         await atualizarJogos()
       }
     } catch (error) {
@@ -80,6 +87,12 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
       setOcupado(false)
     }
   }
+
+  const opcoes = jogosDaEpoca.filter(jogo => jogo.jornada_id === jornada && jogo.status === 'scheduled')
+  const acoesEscolhidas = selecionados.map(id => destinos[id])
+  const associacoes = acoesEscolhidas.filter(destino => destino && destino !== 'novo')
+  const podeImportar = jornada && selecionados.length && acoesEscolhidas.every(Boolean) &&
+    new Set(associacoes).size === associacoes.length
 
   return (
     <details className="pl-jornadas-painel">
@@ -111,6 +124,14 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
       {jogos?.length > 0 && (
         <fieldset disabled={ocupado}>
           <legend>Jogos com hora confirmada</legend>
+          <div className="pl-jornadas-campos">
+            <label>Jornada da Predict League{' '}
+              <select className="pl-jornadas-input" value={jornada} onChange={e => { setJornada(e.target.value); setDestinos({}) }}>
+                <option value="">{jornadas.length ? 'Escolhe uma jornada' : 'Cria uma jornada primeiro'}</option>
+                {jornadas.map(item => <option key={item.id} value={item.id}>{item.nome || `Jornada ${item.numero}`}</option>)}
+              </select>
+            </label>
+          </div>
           <ul>
             {jogos.map(jogo => {
               const selecionado = selecionados.includes(jogo.id)
@@ -120,22 +141,27 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, atualizarJogo
                     onChange={e => setSelecionados(anteriores => e.target.checked
                       ? [...anteriores, jogo.id] : anteriores.filter(id => id !== jogo.id))} />
                   {' '}{jogo.casa} vs {jogo.fora} · {hora.format(new Date(jogo.hora))}</label>
+                  {selecionado && jornada && <div>
+                    <label>Ação para {jogo.casa} vs {jogo.fora}{' '}
+                      <select className="pl-jornadas-input" value={destinos[jogo.id] || ''} onChange={e =>
+                        setDestinos(anteriores => ({ ...anteriores, [jogo.id]: e.target.value }))}>
+                        <option value="">Escolhe uma ação</option>
+                        <option value="novo">Importar se ainda não existir</option>
+                        {opcoes.map(local => <option key={local.id} value={local.id}>
+                          Manter {local.home_team} vs {local.away_team} · {hora.format(new Date(local.kickoff))}
+                        </option>)}
+                      </select>
+                    </label>
+                  </div>}
                 </li>
               )
             })}
           </ul>
-          <div className="pl-jornadas-campos">
-            <label>Jornada da Predict League{' '}
-              <select className="pl-jornadas-input" value={jornada} onChange={e => setJornada(e.target.value)}>
-                <option value="">{jornadas.length ? 'Escolhe uma jornada' : 'Cria uma jornada primeiro'}</option>
-                {jornadas.map(item => <option key={item.id} value={item.id}>{item.nome || `Jornada ${item.numero}`}</option>)}
-              </select>
-            </label>
-            <button type="button" className="pl-jornadas-botao" disabled={!jornada || !selecionados.length}
+          {associacoes.length > 0 && <p>Ao manter um jogo existente, uma cópia importada só é removida se ainda não começou e estiver sem prognósticos, resultado ou bónus.</p>}
+            <button type="button" className="pl-jornadas-botao" disabled={!podeImportar}
               onClick={() => executar('importar')}>
               Importar seleção ({selecionados.length})
             </button>
-          </div>
         </fieldset>
       )}
       {relatorio && (

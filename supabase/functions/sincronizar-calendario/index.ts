@@ -46,7 +46,7 @@ Deno.serve(async req => {
   }
 
   let body: { epocaId?: string; previa?: boolean; acao?: string; competicao?: string;
-    ano?: number; jornadaId?: string; ids?: number[] } | null;
+    ano?: number; jornadaId?: string; ids?: number[]; destinos?: Record<string, string> } | null;
   try { body = await req.json(); } catch { return responder(400, { erro: 'Pedido inválido.' }); }
   if (typeof body?.epocaId !== 'string' || !uuid.test(body.epocaId) ||
       (!agendado && body.acao == null && typeof body.previa !== 'boolean')) {
@@ -63,6 +63,15 @@ Deno.serve(async req => {
         !Array.isArray(body.ids) || body.ids.length < 1 || body.ids.length > 40 ||
         body.ids.some(id => !Number.isSafeInteger(id) || id < 1) || new Set(body.ids).size !== body.ids.length
     )) return responder(400, { erro: 'Escolhe uma jornada e até 40 jogos.' });
+
+    if (body.acao === 'importar' && body.destinos != null) {
+      const destinos = body.ids!.map(id => body.destinos?.[id]);
+      const locais = destinos.filter(destino => destino !== 'novo');
+      if (destinos.some(destino => typeof destino !== 'string' || (destino !== 'novo' && !uuid.test(destino))) ||
+          new Set(locais).size !== locais.length) {
+        return responder(400, { erro: 'Escolhe uma ação para cada jogo e evita associar o mesmo cartão duas vezes.' });
+      }
+    }
 
     const token = Deno.env.get('FOOTBALL_DATA_TOKEN')?.trim();
     if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
@@ -96,7 +105,10 @@ Deno.serve(async req => {
         return responder(200, { jogos: jogos.map(({ id, ronda, hora, casa, fora }) => ({ id, ronda, hora, casa, fora })) });
       }
       const ids = new Set(body.ids);
-      const selecionados = jogos.filter(jogo => ids.has(jogo.id!));
+      const selecionados = jogos.filter(jogo => ids.has(jogo.id!)).map(jogo => {
+        const destino = body.destinos?.[jogo.id!];
+        return { ...jogo, novo: destino === 'novo', destino: destino && destino !== 'novo' ? destino : null };
+      });
       if (selecionados.length !== ids.size) {
         return responder(409, { erro: 'Algum jogo já não tem hora confirmada ou saiu do intervalo. Atualiza a prévia.' });
       }
