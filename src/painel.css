@@ -1,0 +1,133 @@
+.pl-dashboard {
+  --pl-ouro: #f0d477;
+}
+.pl-proximo {
+  position: relative;
+  text-align: left;
+  padding: clamp(18px, 4vw, 38px);
+  margin-bottom: 22px;
+  background: linear-gradient(130deg, #1c283b 0%, #121b2a 64%, #2c2518 100%);
+  border: 1px solid #554b34;
+  border-top: 2px solid var(--pl-ouro);
+  border-radius: 18px;
+}
+.pl-proximo h2 {
+  margin: 0 0 18px;
+  color: var(--pl-ouro);
+  font-size: 15px;
+}
+.pl-proximo p {
+  margin: 14px 0;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+.pl-proximo time { color: #f8fafc; font-weight: 700; }
+.pl-proximo-equipas { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; }
+.pl-proximo-equipas strong {
+  font-size: clamp(24px, 5vw, 44px);
+  letter-spacing: -.035em;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+.pl-proximo-equipas span { color: #a7b5c9; font-size: 15px; }
+.pl-proximo-rodape { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-top: 18px; }
+.pl-proximo-rodape p { margin: 0; }
+.pl-proximo .pl-gold-button { min-height: 44px; }
+.pl-proximo .pl-gold-button span { margin-left: 9px; }
+.pl-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 26px;
+}
+.pl-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  text-align: left;
+  min-width: 0;
+  padding: clamp(10px, 2.5vw, 18px);
+  border: 1px solid #344156;
+  border-radius: 13px;
+  background: #141e2f;
+}
+.pl-stat strong { color: #f8fafc; font-size: clamp(21px, 4vw, 30px); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.pl-stat-label { color: #a7b5c9; font-size: clamp(11px, 2.9vw, 14px); }
+button.pl-stat { border-color: #75613a; cursor: pointer; }
+button.pl-stat strong { color: var(--pl-ouro); }
+button.pl-stat:hover { border-color: var(--pl-ouro); }
+button.pl-stat:disabled { opacity: .6; cursor: default; }
+button.pl-stat:focus-visible, .pl-barra button:focus-visible { outline: 2px solid var(--pl-ouro); outline-offset: -2px; }
+.pl-agenda { text-align: left; margin-bottom: 24px; }
+.pl-agenda ul { list-style: none; padding: 0; margin: 0; border: 1px solid #344156; border-radius: 13px; background: #141e2f; }
+.pl-agenda li + li { border-top: 1px solid #344156; }
+.pl-agenda li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  gap: 8px 12px;
+  background: transparent;
+  color: #f8fafc;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.pl-agenda li button:hover { background: #1d2a3d; }
+.pl-agenda li button:focus-visible { outline: 2px solid var(--pl-ouro); outline-offset: -2px; }
+.pl-agenda-jogo { display: grid; gap: 5px; min-width: 0; }
+.pl-agenda-jogo strong { font-size: 14px; overflow-wrap: anywhere; }
+.pl-agenda-jogo time { color: #a7b5c9; font-size: 12px; }
+.pl-agenda-guardado, .pl-agenda-pendente { padding: 5px 7px; border-radius: 8px; font-size: 11px; text-align: center; }
+.pl-agenda-guardado { background: #193630; color: #a7f3d0; }
+.pl-agenda-pendente { background: #342c20; color: var(--pl-ouro); }
+.pl-barra { display: none; }
+@media (max-width: 760px) {
+  .pl-dashboard { --pl-espaco-barra: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .pl-dashboard .pl-header, .pl-topbar .pl-sino { display: none; }
+  .pl-explorar { display: none; }
+  .pl-barra {
+    position: fixed;
+    z-index: 50;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-top: 1px solid #455166;
+    padding: 5px env(safe-area-inset-right, 0px) calc(5px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
+    background: #101827;
+    box-shadow: 0 -6px 20px #070b1466;
+  }
+  .pl-barra button {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 3px;
+    min-height: 51px;
+    padding: 3px 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #a7b5c9;
+    font: 700 clamp(10px, 2.7vw, 13px) Arial, sans-serif;
+    cursor: pointer;
+  }
+  .pl-barra button[aria-current=page] { background: #2d281d; color: var(--pl-ouro); }
+  .pl-barra-icone { position: relative; font-size: 19px; line-height: 22px; }
+  .pl-barra-icone small {
+    position: absolute;
+    top: -3px;
+    left: 78%;
+    min-width: 15px;
+    border-radius: 9px;
+    padding: 1px 3px;
+    background: var(--pl-ouro);
+    color: #211806;
+    font-size: 9px;
+    line-height: 12px;
+  }
+  .pl-outras-secoes .pl-card { min-height: 110px; }
+  .pl-stats { gap: 7px; }
+}

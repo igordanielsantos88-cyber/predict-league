@@ -77,8 +77,8 @@ const estilos = `
   }
 
   .pl-jogo-cartao {
-    background: linear-gradient(145deg, #1b2535, #131c2b);
-    border: 1px solid #334155;
+    background: #152033;
+    border: 1px solid #344156;
     border-radius: 15px;
     padding: 22px;
     margin-bottom: 14px;
@@ -100,7 +100,7 @@ const estilos = `
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
   }
 
   .pl-jogo-data {
@@ -115,7 +115,39 @@ const estilos = `
 
   .pl-jogo-prazo-urgente {
     color: #f0d477;
+    background: #3a2f1b;
+    border-radius: 20px;
+    padding: 5px 9px;
     font-weight: bold;
+  }
+
+  .pl-jogo-marcador {
+    background: #0d1523;
+    border: 1px solid #75613a;
+    padding: 7px 10px;
+    border-radius: 9px;
+    color: #f0d477;
+    font-weight: bold;
+    font-size: clamp(19px, 4vw, 28px);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .pl-jogo-rodape {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pl-jogo-etiqueta-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .pl-gravacao {
@@ -131,7 +163,10 @@ const estilos = `
   .pl-palpite-estado {
     color: #94a3b8;
     font-size: 13px;
-    margin: 0 0 12px;
+    margin: 0;
+    background: #111a29;
+    border-radius: 12px;
+    padding: 5px 8px;
   }
 
   .pl-palpite-guardado { color: #86efac; }
@@ -159,7 +194,7 @@ const estilos = `
   }
 
   .pl-jogo-equipa {
-    font-size: clamp(14px, 3vw, 19px);
+    font-size: clamp(15px, 4vw, 23px);
     font-weight: bold;
     overflow-wrap: anywhere;
   }
@@ -761,6 +796,10 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 const palpite = palpites[jogo.id]
                 const rascunho = temRascunho(palpite, guardado)
                 const gravacaoDoJogo = estadoGravacao?.alvo === jogo.id ? estadoGravacao : null
+                const temMarcador = jogo.status === 'finished' && jogo.home_score != null && jogo.away_score != null
+                const golosCasa = temMarcador ? jogo.home_score : resultado?.home_score
+                const golosFora = temMarcador ? jogo.away_score : resultado?.away_score
+                const podePrognosticar = jogo.status === 'scheduled' && tempoRestante > 0
 
                 return (
                   <div key={jogo.id} className="pl-jogo-cartao"
@@ -770,19 +809,22 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                     aria-label={jogoEmDestaque ? `${jogo.home_team} vs ${jogo.away_team}` : undefined}
                   >
                     <div className="pl-jogo-topo">
-                      <span className="pl-jogo-data">
-                        📅 {new Date(jogo.kickoff).toLocaleString('pt-PT')}
-                      </span>
+                      <time className="pl-jogo-data" dateTime={jogo.kickoff}>
+                        {new Date(jogo.kickoff).toLocaleString('pt-PT', {
+                          dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Lisbon',
+                        })}
+                      </time>
 
-                      {mostrarPorPrazo && (
+                      {podePrognosticar && (mostrarPorPrazo || tempoRestante <= 3600000) && (
                         <span className={tempoRestante <= 3600000 ? 'pl-jogo-prazo pl-jogo-prazo-urgente' : 'pl-jogo-prazo'}>
                           {formatarPrazo(tempoRestante)}
                         </span>
                       )}
 
-                      {jogo.status === 'scheduled' && tempoRestante > 0 && (
-                        <button type="button" className="pl-jogo-secundario"
-                          onClick={() => adicionarJogoAoCalendario(jogo)}>Adicionar ao calendário</button>
+                      {podePrognosticar && (!gravacaoDoJogo || gravacaoDoJogo.erro) && (
+                        <span className={`pl-palpite-estado ${rascunho ? 'pl-palpite-rascunho' : guardado ? 'pl-palpite-guardado' : ''}`}>
+                          {rascunho ? 'Alterações por guardar' : guardado ? 'Guardado' : 'Por preencher'}
+                        </span>
                       )}
 
                       {jogo.is_bonus && (
@@ -797,9 +839,11 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                         {jogo.home_team}
                       </span>
 
-                      <span className="pl-jogo-versus">
-                        VS
-                      </span>
+                      {golosCasa != null && golosFora != null ? (
+                        <span className="pl-jogo-marcador">
+                          <span className="pl-jogo-etiqueta-sr">Resultado oficial: </span>{golosCasa}–{golosFora}
+                        </span>
+                      ) : <span className="pl-jogo-versus">VS</span>}
 
                       <span className="pl-jogo-equipa">
                         {jogo.away_team}
@@ -811,12 +855,6 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                         <p>
                           🎯 O teu prognóstico:
                           {' '}{guardado?.casa}–{guardado?.fora}
-                        </p>
-
-                        <p>
-                          🏁 Resultado oficial:
-                          {' '}{resultado.home_score}–
-                          {resultado.away_score}
                         </p>
 
                         <p className="pl-jogo-pontos">
@@ -838,13 +876,6 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                         )}
                       </div>
                     )}
-
-                    {(!resultado || resultado.points === null) &&
-                      jogo.status === 'finished' && jogo.home_score != null && jogo.away_score != null && (
-                        <div className="pl-jogo-resultado">
-                          <p>🏁 Resultado oficial: {jogo.home_score}–{jogo.away_score}</p>
-                        </div>
-                      )}
 
                     <div className="pl-jogo-divisor" />
 
@@ -890,12 +921,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                           />
                         </div>
 
-                        <div style={{ textAlign: 'center' }}>
-                          {(!gravacaoDoJogo || gravacaoDoJogo.erro) && (
-                            <p className={`pl-palpite-estado ${rascunho ? 'pl-palpite-rascunho' : guardado ? 'pl-palpite-guardado' : ''}`}>
-                              {rascunho ? 'Alterações por guardar' : guardado ? 'Guardado' : 'Por preencher'}
-                            </p>
-                          )}
+                        <div className="pl-jogo-rodape">
                           <button
                             type="button"
                             className="pl-jogo-botao"
@@ -911,6 +937,10 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                               disabled={aGuardar !== null} onClick={() => reporPalpite(jogo.id)}>
                               Repor prognóstico guardado
                             </button>
+                          )}
+                          {podePrognosticar && (
+                            <button type="button" className="pl-jogo-secundario"
+                              onClick={() => adicionarJogoAoCalendario(jogo)}>Adicionar ao calendário</button>
                           )}
                           <EstadoGravacao estado={gravacaoDoJogo} />
                         </div>
