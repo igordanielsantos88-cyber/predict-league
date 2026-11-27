@@ -21,6 +21,8 @@ const resultados = {
   criado: 'Importado',
   associado: 'Associado ao jogo existente',
   existente: 'Já importado',
+  importado_mantido: 'Jogo importado mantido e prognósticos transferidos.',
+  importado_protegido: 'Junção bloqueada. Confirma a jornada, o estado dos jogos e se alguém tem prognósticos nos dois.',
   corrigido: 'Cópia removida. O jogo escolhido e os seus prognósticos foram mantidos.',
   protegido: 'A cópia já começou, tem prognósticos, resultado ou bónus. Ambos os jogos foram mantidos.',
   rever: 'O jogo já começou ou a correspondência precisa de revisão.',
@@ -92,7 +94,7 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
   const acoesEscolhidas = selecionados.map(id => destinos[id])
   const associacoes = acoesEscolhidas.filter(destino => destino && destino !== 'novo')
   const podeImportar = jornada && selecionados.length && acoesEscolhidas.every(Boolean) &&
-    new Set(associacoes).size === associacoes.length
+    new Set(associacoes.map(destino => destino.replace(/^importado:/, ''))).size === associacoes.length
 
   return (
     <details className="pl-jornadas-painel">
@@ -150,6 +152,9 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
                         {opcoes.map(local => <option key={local.id} value={local.id}>
                           Manter {local.home_team} vs {local.away_team} · {hora.format(new Date(local.kickoff))}
                         </option>)}
+                        {opcoes.map(local => <option key={`importado:${local.id}`} value={`importado:${local.id}`}>
+                          Manter o importado e juntar {local.home_team} vs {local.away_team} · {hora.format(new Date(local.kickoff))}
+                        </option>)}
                       </select>
                     </label>
                   </div>}
@@ -157,7 +162,7 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
               )
             })}
           </ul>
-          {associacoes.length > 0 && <p>Ao manter um jogo existente, uma cópia importada só é removida se ainda não começou e estiver sem prognósticos, resultado ou bónus.</p>}
+          {associacoes.length > 0 && <p>Confirma qual dos cartões queres manter. Ao manter o importado, o jogo manual é removido depois de transferir os prognósticos. A junção é bloqueada se houver prognósticos da mesma pessoa nos dois cartões.</p>}
             <button type="button" className="pl-jornadas-botao" disabled={!podeImportar}
               onClick={() => executar('importar')}>
               Importar seleção ({selecionados.length})

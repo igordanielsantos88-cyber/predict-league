@@ -67,8 +67,8 @@ Deno.serve(async req => {
     if (body.acao === 'importar' && body.destinos != null) {
       const destinos = body.ids!.map(id => body.destinos?.[id]);
       const locais = destinos.filter(destino => destino !== 'novo');
-      if (destinos.some(destino => typeof destino !== 'string' || (destino !== 'novo' && !uuid.test(destino))) ||
-          new Set(locais).size !== locais.length) {
+      if (destinos.some(destino => typeof destino !== 'string' || (destino !== 'novo' && !uuid.test(destino.replace(/^importado:/, '')))) ||
+          new Set(locais.map(destino => destino?.replace(/^importado:/, ''))).size !== locais.length) {
         return responder(400, { erro: 'Escolhe uma ação para cada jogo e evita associar o mesmo cartão duas vezes.' });
       }
     }
@@ -107,7 +107,8 @@ Deno.serve(async req => {
       const ids = new Set(body.ids);
       const selecionados = jogos.filter(jogo => ids.has(jogo.id!)).map(jogo => {
         const destino = body.destinos?.[jogo.id!];
-        return { ...jogo, novo: destino === 'novo', destino: destino && destino !== 'novo' ? destino : null };
+        return { ...jogo, novo: destino === 'novo', manter_importado: destino?.startsWith('importado:') ?? false,
+          destino: destino && destino !== 'novo' ? destino.replace(/^importado:/, '') : null };
       });
       if (selecionados.length !== ids.size) {
         return responder(409, { erro: 'Algum jogo já não tem hora confirmada ou saiu do intervalo. Atualiza a prévia.' });
