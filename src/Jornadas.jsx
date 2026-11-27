@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import HistoricoResultado from './HistoricoResultado'
 
 const estilos = `
   .pl-jornadas {
@@ -216,6 +217,12 @@ const estilos = `
     gap: 10px;
   }
 
+  .pl-jornadas-filtros { margin-bottom: 16px; }
+  .pl-jornadas-filtros button[aria-pressed=true] {
+    background: #e8c76a;
+    color: #211806;
+  }
+
   .pl-jornadas-form-extra {
     margin-top: 18px;
     padding: 20px;
@@ -305,11 +312,23 @@ export default function Jornadas({ competicaoId }) {
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState('')
   const [aCarregar, setACarregar] = useState(true)
+  const [soPorFechar, setSoPorFechar] = useState(false)
+  const [agora, setAgora] = useState(Date.now)
   const focoResultado = useRef(null)
 
   useEffect(() => {
     if (resultadoId) focoResultado.current?.focus()
   }, [resultadoId, resultadoEmRevisao])
+
+  useEffect(() => {
+    const atualizarHora = () => setAgora(Date.now())
+    const intervalo = setInterval(atualizarHora, 30000)
+    window.addEventListener('focus', atualizarHora)
+    return () => {
+      clearInterval(intervalo)
+      window.removeEventListener('focus', atualizarHora)
+    }
+  }, [])
 
   async function atualizarListas(id) {
     const [j, m] = await Promise.all([
@@ -526,6 +545,13 @@ export default function Jornadas({ competicaoId }) {
     )
   }
 
+  const idsJornadas = new Set(jornadas.map(jornada => jornada.id))
+  const jogosPorFechar = new Set(jogos.filter(jogo =>
+    idsJornadas.has(jogo.jornada_id) && Date.parse(jogo.kickoff) <= agora &&
+    (jogo.status === 'scheduled' || (jogo.status === 'finished' &&
+      (jogo.home_score == null || jogo.away_score == null)))
+  ).map(jogo => jogo.id))
+
   return (
     <div className="pl-jornadas">
       <style>{estilos}</style>
@@ -564,7 +590,18 @@ export default function Jornadas({ competicaoId }) {
         📋 Jornadas criadas ({jornadas.length})
       </h3>
 
-      {jornadas.length === 0 && (
+      <div className="pl-jornadas-acoes pl-jornadas-filtros" role="group" aria-label="Filtrar jogos">
+        <button type="button" className="pl-jornadas-botao-secundario" aria-pressed={!soPorFechar}
+          onClick={() => setSoPorFechar(false)}>Todos os jogos</button>
+        <button type="button" className="pl-jornadas-botao-secundario" aria-pressed={soPorFechar}
+          onClick={() => setSoPorFechar(true)}>Por fechar ({jogosPorFechar.size})</button>
+      </div>
+
+      {soPorFechar && jogosPorFechar.size === 0 && (
+        <p className="pl-jornadas-vazio" role="status">Não há jogos por fechar.</p>
+      )}
+
+      {!soPorFechar && jornadas.length === 0 && (
         <p className="pl-jornadas-vazio">
           Ainda não existem jornadas nesta época.
         </p>
@@ -574,6 +611,8 @@ export default function Jornadas({ competicaoId }) {
         const jogosJornada = jogos.filter(
           j => j.jornada_id === jornada.id
         )
+        const jogosVisiveis = soPorFechar ? jogosJornada.filter(jogo => jogosPorFechar.has(jogo.id)) : jogosJornada
+        if (soPorFechar && jogosVisiveis.length === 0) return null
 
         const totalBonus = jogosJornada.filter(
           j => j.is_bonus
@@ -593,7 +632,7 @@ export default function Jornadas({ competicaoId }) {
                 </span>
               </div>
 
-              <button
+              {!soPorFechar && <button
                 type="button"
                 className="pl-jornadas-botao-secundario"
                 onClick={() => {
@@ -605,7 +644,7 @@ export default function Jornadas({ competicaoId }) {
                 {selecionada === jornada.id
                   ? 'Cancelar'
                   : '+ Adicionar jogo'}
-              </button>
+              </button>}
             </div>
 
             <div className="pl-jornadas-conteudo">
@@ -615,7 +654,7 @@ export default function Jornadas({ competicaoId }) {
                 </p>
               )}
 
-              {jogosJornada.map(jogo => (
+              {jogosVisiveis.map(jogo => (
                 <div key={jogo.id} className="pl-jornadas-jogo">
                   <div className="pl-jornadas-jogo-topo">
                     <span className="pl-jornadas-data">
@@ -701,6 +740,10 @@ export default function Jornadas({ competicaoId }) {
                     </button>
                   </div>
 
+                  {jogo.status === 'finished' && (
+                    <HistoricoResultado jogoId={jogo.id} golosCasa={jogo.home_score} golosFora={jogo.away_score} />
+                  )}
+
                   {resultadoId === jogo.id && (
                     <div className="pl-jornadas-form-extra">
                       {resultadoEmRevisao?.jogoId === jogo.id ? (
@@ -784,7 +827,7 @@ export default function Jornadas({ competicaoId }) {
                 </div>
               ))}
 
-              {selecionada === jornada.id && (
+              {!soPorFechar && selecionada === jornada.id && (
                 <div className="pl-jornadas-form-extra">
                   <h4>⚽ Adicionar novo jogo</h4>
 

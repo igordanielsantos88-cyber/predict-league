@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import Dashboard from './Dashboard'
 import PainelParticipante from './PainelParticipante'
@@ -68,6 +68,23 @@ const estilos = `
   .pl-logout:focus-visible {
     outline: 2px solid #f0d477;
     outline-offset: 3px;
+  }
+
+  .pl-sino {
+    position: relative;
+  }
+
+  .pl-sino-contador {
+    position: absolute;
+    top: -7px;
+    right: -8px;
+    min-width: 20px;
+    padding: 2px 5px;
+    border-radius: 20px;
+    background: #f0d477;
+    color: #211806;
+    font-size: 11px;
+    text-align: center;
   }
 
   .pl-logout:hover {
@@ -212,10 +229,17 @@ function App() {
   const saidaEmCurso = useRef(false)
   useEffect(() => vigiarSessaoPush(setErroSaida), [])
   const [pedidoNotificacoes, setPedidoNotificacoes] = useState(0)
-  const [jogoDaLigacao, setJogoDaLigacao] = useState(() => {
-    const jogo = new URLSearchParams(window.location.search).get('jogo')
-    return jogo?.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jogo)
-      ? jogo.toLowerCase() : null
+  const [naoLidas, setNaoLidas] = useState(null)
+  const [revisaoNotificacoes, setRevisaoNotificacoes] = useState(0)
+  const atualizarSino = useCallback(() => setRevisaoNotificacoes(revisao => revisao + 1), [])
+  const [destino, setDestino] = useState(() => {
+    const parametros = new URLSearchParams(window.location.search)
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const tipo of ['jogo', 'jornada']) {
+      const id = parametros.get(tipo)
+      if (id?.length === 36 && uuid.test(id)) return { tipo, id: id.toLowerCase() }
+    }
+    return null
   })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -226,6 +250,39 @@ function App() {
   const [administrador, setAdministrador] = useState(false)
   const [participante, setParticipante] = useState(false)
   const [aVerificarSessao, setAVerificarSessao] = useState(true)
+
+  useEffect(() => {
+    if (!administrador && !participante) return
+    let controller
+
+    async function consultar() {
+      if (document.visibilityState === 'hidden') return
+      controller?.abort()
+      const pedido = new AbortController()
+      controller = pedido
+      const { data, error } = await supabase.rpc('contar_notificacoes_nao_lidas').abortSignal(pedido.signal)
+      if (pedido.signal.aborted) return
+      const total = Number(data)
+      if (!error && data != null && Number.isSafeInteger(total) && total >= 0) setNaoLidas(total)
+    }
+
+    void consultar()
+    const intervalo = setInterval(consultar, 60000)
+    window.addEventListener('focus', consultar)
+    document.addEventListener('visibilitychange', consultar)
+    const { data: sessao } = supabase.auth.onAuthStateChange(event => {
+      if (event !== 'SIGNED_OUT') return
+      controller?.abort()
+      setNaoLidas(null)
+    })
+    return () => {
+      controller?.abort()
+      clearInterval(intervalo)
+      window.removeEventListener('focus', consultar)
+      document.removeEventListener('visibilitychange', consultar)
+      sessao.subscription.unsubscribe()
+    }
+  }, [administrador, participante, revisaoNotificacoes])
 
   useEffect(() => {
     let ativo = true
@@ -365,12 +422,13 @@ function App() {
     }
   }
 
-  function limparLigacaoJogo() {
-    if (!jogoDaLigacao) return
+  function limparLigacao() {
+    if (!destino) return
     const url = new URL(window.location.href)
     url.searchParams.delete('jogo')
+    url.searchParams.delete('jornada')
     window.history.replaceState(window.history.state, '', url)
-    setJogoDaLigacao(null)
+    setDestino(null)
   }
 
   async function terminarSessao() {
@@ -388,7 +446,8 @@ function App() {
       setPassword('')
       setMensagem('')
       setPedidoNotificacoes(0)
-      limparLigacaoJogo()
+      setNaoLidas(null)
+      limparLigacao()
     } catch (error) {
       setErroSaida(error.message || 'Não foi possível terminar a sessão.')
     } finally {
@@ -425,15 +484,18 @@ function App() {
           <div className="pl-topbar-actions">
             <button
               type="button"
-              className="pl-logout"
-              aria-label="Abrir notificações"
+              className="pl-logout pl-sino"
+              aria-label={naoLidas > 0
+                ? `Abrir notificações (${naoLidas} ${naoLidas === 1 ? 'aviso por ler' : 'avisos por ler'})`
+                : 'Abrir notificações'}
               title="Notificações"
               onClick={() => {
-                limparLigacaoJogo()
+                limparLigacao()
                 setPedidoNotificacoes(n => n + 1)
               }}
             >
               <span aria-hidden="true">🔔</span>
+              {naoLidas > 0 && <span className="pl-sino-contador" aria-hidden="true">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </button>
 
             <button
@@ -449,8 +511,8 @@ function App() {
         {erroSaida && <p role="alert" style={{ padding: '12px 28px', color: '#fca5a5' }}>{erroSaida}</p>}
 
         {administrador
-          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} jogoDaLigacao={jogoDaLigacao} limparLigacaoJogo={limparLigacaoJogo} />
-          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} jogoDaLigacao={jogoDaLigacao} limparLigacaoJogo={limparLigacaoJogo} />}
+          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} destino={destino} limparLigacao={limparLigacao} />
+          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} destino={destino} limparLigacao={limparLigacao} />}
       </div>
     )
   }

@@ -70,8 +70,12 @@ const estilos = `
   @media (prefers-reduced-motion:reduce) { .pl-card,.pl-gold-button { transition:none; } .pl-card:hover,.pl-gold-button:hover { transform:none; } }
 `
 
-function PainelParticipante({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo }) {
-  const [pagina, setPagina] = useState(jogoDaLigacao ? 'prognosticos' : 'inicio')
+function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, destino, limparLigacao }) {
+  const [pagina, setPagina] = useState(() => {
+    if (destino?.tipo === 'jogo') return 'prognosticos'
+    if (destino?.tipo === 'jornada') return 'liga'
+    return 'inicio'
+  })
   useEffect(() => {
     if (pedidoNotificacoes > 0) setPagina('notificacoes')
   }, [pedidoNotificacoes])
@@ -187,14 +191,14 @@ useEffect(() => {
 
   const proximo = resumo.proximo
   const componentes = {
-    prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={jogoDaLigacao} />,
+    prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={destino?.tipo === 'jogo' ? destino.id : null} />,
     'prognosticos-pendentes': <JogosParticipante competicaoId={competicaoId} filtroInicial="por-prognosticar" />,
     'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={proximo?.id} />,
-    liga: <Liga competicaoId={competicaoId} />,
+    liga: <Liga competicaoId={competicaoId} jornadaInicial={destino?.tipo === 'jornada' ? destino.id : null} />,
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
     duelo: <Duelo competicaoId={competicaoId} />,
     conquistas: <Conquistas competicaoId={competicaoId} />,
-    notificacoes: <Notificacoes />,
+    notificacoes: <Notificacoes atualizarSino={atualizarSino} />,
     'hall-da-fama': <HallDaFama />,
     chat: <Chat />,
      }
@@ -221,7 +225,7 @@ useEffect(() => {
         </div>
         {pagina !== 'inicio' && (
           <button type="button" className="pl-back" onClick={() => {
-            limparLigacaoJogo()
+            limparLigacao()
             setPagina('inicio')
           }}>← Dashboard</button>
         )}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import PushNotificacoes from './PushNotificacoes'
+import PreferenciasPush from './PreferenciasPush'
 
 const estilos = `
 .pl-notificacoes { color:#e2e8f0; line-height:1.6; }
@@ -22,6 +23,10 @@ const estilos = `
 .pl-notificacoes .pn-meta { color:#a7b5c9; font-size:13px; display:flex; flex-wrap:wrap; gap:12px; }
 .pl-notificacoes .pn-item .pn-acoes { margin-top:10px; }
 .pl-notificacoes .pn-erro { color:#fca5a5; }
+.pl-notificacoes .pn-preferencias { margin-bottom:20px; }
+.pl-notificacoes .pn-preferencias fieldset { border:0; padding:0; margin:0; }
+.pl-notificacoes .pn-preferencias label { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.pl-notificacoes .pn-preferencias input { accent-color:#e8c76a; }
 @media(max-width:600px) { .pl-notificacoes .pn-item { padding:14px; } }
 `
 
@@ -44,7 +49,7 @@ function categoria(tipo) {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export default function Notificacoes() {
+export default function Notificacoes({ atualizarSino }) {
   const [estado, setEstado] = useState({ itens: null, erro: '', carregando: true })
   const [filtro, setFiltro] = useState('todas')
   const [aMarcar, setAMarcar] = useState(null)
@@ -83,18 +88,24 @@ export default function Notificacoes() {
         const ids = avisos.filter(aviso => uuid.test(aviso.id)).map(aviso => aviso.id)
         const ligacoes = new Map()
         if (ids.length) {
-          const { data: jogos } = await supabase
-            .rpc('obter_jogos_das_notificacoes', { p_notificacao_ids: ids }).abortSignal(signal)
+          const argumentos = { p_notificacao_ids: ids }
+          let resposta = await supabase.rpc('obter_destinos_das_notificacoes', argumentos).abortSignal(signal)
+          if (!signal.aborted && resposta.error?.code === 'PGRST202') {
+            resposta = await supabase.rpc('obter_jogos_das_notificacoes', argumentos).abortSignal(signal)
+          }
           if (!ativo || atual !== pedido) return
-          if (Array.isArray(jogos)) {
-            for (const jogo of jogos) {
+          if (Array.isArray(resposta.data)) {
+            for (const jogo of resposta.data) {
               if (typeof jogo?.jogo_id === 'string' && uuid.test(jogo.jogo_id)) {
-                ligacoes.set(jogo.notificacao_id, jogo.jogo_id)
+                ligacoes.set(jogo.notificacao_id, {
+                  jogoId: jogo.jogo_id,
+                  jornadaId: typeof jogo.jornada_id === 'string' && uuid.test(jogo.jornada_id) ? jogo.jornada_id : null,
+                })
               }
             }
           }
         }
-        itens = avisos.map(aviso => ({ ...aviso, jogoId: ligacoes.get(aviso.id) }))
+        itens = avisos.map(aviso => ({ ...aviso, ...ligacoes.get(aviso.id) }))
         setEstado({ itens, erro: '', carregando: false })
       } catch (error) {
         if (ativo && atual === pedido) {
@@ -122,6 +133,7 @@ export default function Notificacoes() {
         const resultado = await supabase.rpc('marcar_notificacao_lida', { p_notificacao_id: id }).abortSignal(signal)
         if (!ativo || atual !== pedido) return
         if (resultado.error || typeof resultado.data !== 'boolean') throw new Error('Não foi possível marcar o aviso como lido. Tenta novamente.')
+        atualizarSino()
         // false pode significar que outra sessão já marcou o aviso; confirmar no servidor.
         if (resultado.data) {
           itens = itens.map(n => n.id === id ? { ...n, lida: true } : n)
@@ -172,13 +184,14 @@ export default function Notificacoes() {
       document.removeEventListener('visibilitychange', refrescarVisivel)
       listener?.subscription?.unsubscribe()
     }
-  }, [])
+  }, [atualizarSino])
 
   const naoLidas = estado.itens?.filter(n => !n.lida).length
   const visiveis = estado.itens?.filter(n => filtro === 'todas' || !n.lida) ?? []
   return <section className="pl-notificacoes" aria-label="As minhas notificações" aria-busy={estado.carregando}>
     <style>{estilos}</style>
     <PushNotificacoes />
+    <PreferenciasPush />
     <div className="pn-topo">
       <span className="pn-contador">{naoLidas == null ? '—' : naoLidas} por ler nos últimos 50 avisos</span>
       <button type="button" disabled={estado.carregando || !!aMarcar} onClick={atualizar}>Atualizar</button>
@@ -200,6 +213,7 @@ export default function Notificacoes() {
       <p>{n.mensagem}</p>
       {(!n.lida || n.jogoId) && <div className="pn-acoes">
         {n.jogoId && <a className="pn-ligacao" href={`/?jogo=${n.jogoId}`}>Ver jogo</a>}
+        {n.tipo === 'match_result' && n.jornadaId && <a className="pn-ligacao" href={`/?jornada=${n.jornadaId}`}>Ver jornada</a>}
         {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar(n.id)}>
           {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
         </button>}

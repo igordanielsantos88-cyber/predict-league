@@ -288,13 +288,75 @@ function calcularMovimentos(anterior, atual) {
   return movimentos
 }
 
-function Liga({ competicaoId }) {
-  const [tipoClassificacao, setTipoClassificacao] = useState('geral')
+const acertos = {
+  exato: 'Resultado exato',
+  tendencia: 'Tendência certa',
+  falhado: 'Prognóstico falhado',
+  'sem-prognostico': 'Sem prognóstico',
+  'por-pontuar': 'Por pontuar',
+}
+
+function descreverMovimento(antes, depois) {
+  if (antes == null || depois == null) return 'Movimento indisponível para esta jornada.'
+  const diferenca = Math.abs(antes - depois)
+  if (!diferenca) return `Mantiveste a posição ${depois}.º.`
+  const sentido = antes > depois ? 'Subiste' : 'Desceste'
+  return `${sentido} ${diferenca} ${diferenca === 1 ? 'posição' : 'posições'} (${antes}.º → ${depois}.º).`
+}
+
+function ResumoJornada({ competicaoId, jornadaId }) {
+  const [estado, setEstado] = useState(null)
+
+  useEffect(() => {
+    const pedido = new AbortController()
+    async function carregar() {
+      const { data, error } = await supabase.rpc('obter_resumo_jornada', {
+        p_competition_id: competicaoId,
+        p_jornada_id: jornadaId,
+      }).abortSignal(pedido.signal)
+      if (pedido.signal.aborted) return
+      if (error || data?.jornadaId !== jornadaId || !Array.isArray(data.jogos)) {
+        setEstado({ erro: 'Não foi possível carregar o resumo da jornada.' })
+      } else {
+        setEstado(data)
+      }
+    }
+    void carregar()
+    return () => pedido.abort()
+  }, [competicaoId, jornadaId])
+
+  return (
+    <section className="pl-liga-meu-cartao" aria-labelledby="pl-resumo-jornada">
+      <h3 id="pl-resumo-jornada" className="pl-liga-meu-titulo">O meu resumo da jornada</h3>
+      {!estado ? <p role="status">A carregar resumo…</p> : estado.erro ? <p role="alert">{estado.erro}</p> : (
+        <>
+          <p>
+            <strong>{estado.pontos} {estado.pontos === 1 ? 'ponto' : 'pontos'}</strong>
+            {' · '}{estado.terminados} de {estado.total} jogos com resultado
+          </p>
+          <p>{descreverMovimento(estado.posicaoAnterior, estado.posicaoAtual)}</p>
+          {estado.jogos.length > 0 && (
+            <ul>
+              {estado.jogos.map(jogo => <li key={jogo.id}>
+                <strong>{jogo.casa} {jogo.golosCasa}–{jogo.golosFora} {jogo.fora}</strong>
+                {' · '}{acertos[jogo.acerto]}
+                {jogo.pontos != null && ` · ${jogo.pontos} ${jogo.pontos === 1 ? 'ponto' : 'pontos'}`}
+              </li>)}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function Liga({ competicaoId, jornadaInicial }) {
+  const [tipoClassificacao, setTipoClassificacao] = useState(jornadaInicial ? 'jornada' : 'geral')
   const [selecao, setSelecao] = useState({ competicaoId: null, id: '' })
   const [recarregar, setRecarregar] = useState(0)
   const [estado, setEstado] = useState(null)
   const [ligacao, setLigacao] = useState({ competicaoId: null, estado: 'a-ligar' })
-  const jornadaPedida = selecao.competicaoId === competicaoId ? selecao.id : ''
+  const jornadaPedida = selecao.competicaoId === competicaoId ? selecao.id : jornadaInicial || ''
 
   useEffect(() => {
     if (!competicaoId) return
@@ -404,7 +466,8 @@ function Liga({ competicaoId }) {
   const erroAtual = !competicaoId ? 'Não foi possível identificar a competição ativa.'
     : estadoCorreto ? estado.erro : ''
   const jornadas = dados?.jornadas || []
-  const jornadaSelecionada = dados?.jornadaSelecionada || ''
+  const jornadaIndisponivel = Boolean(dados && jornadaPedida && dados.jornadaSelecionada !== jornadaPedida)
+  const jornadaSelecionada = jornadaIndisponivel ? '' : dados?.jornadaSelecionada || ''
   const utilizadorAtual = dados?.utilizadorAtual || null
   const classificacaoVisivel = tipoClassificacao === 'geral' ? dados?.geral || []
     : tipoClassificacao === 'concluidas' ? dados?.acumulada || [] : dados?.porJornada || []
@@ -510,9 +573,9 @@ function Liga({ competicaoId }) {
             onChange={e => setSelecao({ competicaoId, id: e.target.value })}
             disabled={aCarregarAtual}
           >
-            {jornadas.length === 0 && (
+            {(jornadas.length === 0 || jornadaIndisponivel) && (
               <option value="">
-                Sem jornadas disponíveis
+                {jornadas.length ? 'Seleciona outra jornada' : 'Sem jornadas disponíveis'}
               </option>
             )}
 
@@ -522,6 +585,7 @@ function Liga({ competicaoId }) {
               </option>
             ))}
           </select>
+          {jornadaIndisponivel && <p role="status">A jornada selecionada já não está disponível na época ativa.</p>}
         </div>
       )}
 
@@ -546,6 +610,11 @@ function Liga({ competicaoId }) {
                 👥 Jogadores inscritos: {classificacaoVisivel.length}
               </span>
             </div>
+
+            {tipoClassificacao === 'jornada' && (
+              <ResumoJornada key={`${competicaoId}:${jornadaSelecionada}`}
+                competicaoId={competicaoId} jornadaId={jornadaSelecionada} />
+            )}
 
             {meusDadosVisiveis && (
               <section className="pl-liga-meu-cartao">

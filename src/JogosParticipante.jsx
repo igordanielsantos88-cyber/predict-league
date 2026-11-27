@@ -291,6 +291,11 @@ function lerPrognostico(jogo, palpite) {
   return { match_id: jogo.id, home_goals: casa, away_goals: fora }
 }
 
+function temRascunho(palpite, guardado) {
+  return (palpite?.casa ?? '') !== (guardado?.casa ?? '') ||
+    (palpite?.fora ?? '') !== (guardado?.fora ?? '')
+}
+
 function formatarPrazo(milissegundos) {
   const minutos = Math.floor(milissegundos / 60000)
   if (minutos === 0) return 'Fecha em menos de 1 min'
@@ -612,12 +617,15 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   }
 
   const idsJornadas = new Set(jornadas.map(jornada => jornada.id))
-  const porPrognosticar = new Set(jogos.filter(jogo =>
-    jogo.status === 'scheduled' &&
-    new Date(jogo.kickoff).getTime() > agora &&
-    idsJornadas.has(jogo.jornada_id) &&
-    !prognosticosGuardados[jogo.id]
-  ).map(jogo => jogo.id))
+  const porPrognosticar = new Set()
+  const rascunhos = new Set()
+  for (const jogo of jogos) {
+    if (jogo.status !== 'scheduled' || new Date(jogo.kickoff).getTime() <= agora ||
+      !idsJornadas.has(jogo.jornada_id)) continue
+    const guardado = prognosticosGuardados[jogo.id]
+    if (!guardado) porPrognosticar.add(jogo.id)
+    if (temRascunho(palpites[jogo.id], guardado)) rascunhos.add(jogo.id)
+  }
 
   const jogosFiltrados = jogos.filter(jogo => {
     if (filtroJogos === 'por-jogar') {
@@ -628,6 +636,10 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
       return porPrognosticar.has(jogo.id)
     }
 
+    if (filtroJogos === 'rascunhos') {
+      return rascunhos.has(jogo.id)
+    }
+
     if (filtroJogos === 'terminados') {
       return jogo.status === 'finished'
     }
@@ -636,10 +648,12 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   })
 
   const mostrarPendentes = filtroJogos === 'por-prognosticar'
-  const grupos = mostrarPendentes
+  const mostrarRascunhos = filtroJogos === 'rascunhos'
+  const mostrarPorPrazo = mostrarPendentes || mostrarRascunhos
+  const grupos = mostrarPorPrazo
     ? (jogosFiltrados.length ? [{
-        id: 'pendentes',
-        nome: 'Jogos por prognosticar',
+        id: filtroJogos,
+        nome: mostrarRascunhos ? 'Rascunhos com prazo aberto' : 'Jogos por prognosticar',
         jogos: jogosFiltrados.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff)),
       }] : [])
     : jornadas
@@ -686,6 +700,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
           ['todos', '⚽ Todos'],
           ['por-jogar', '📅 Por jogar'],
           ['por-prognosticar', `🎯 Por prognosticar (${porPrognosticar.size})`],
+          ['rascunhos', `✏️ Rascunhos (${rascunhos.size})`],
           ['terminados', '🏁 Terminados'],
         ].map(([valor, nome]) => (
           <button
@@ -707,7 +722,9 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
       {grupos.length === 0 ? (
         <p role="status">{mostrarPendentes
           ? 'Não tens prognósticos em falta para os jogos com prazo aberto.'
-          : 'Não existem jogos para o filtro selecionado.'}</p>
+          : mostrarRascunhos
+            ? 'Não tens rascunhos com prazo aberto.'
+            : 'Não existem jogos para o filtro selecionado.'}</p>
       ) : (
         grupos.map(jornada => (
           <details key={jornada.id} open className="pl-jornada">
@@ -727,7 +744,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 >
                   {aGuardar === `grupo:${jornada.id}`
                     ? '⏳ A guardar prognósticos...'
-                    : '💾 Guardar todos os prognósticos'}
+                    : mostrarRascunhos ? '💾 Guardar rascunhos completos' : '💾 Guardar todos os prognósticos'}
                 </button>
                 {estadoGravacao?.alvo === `grupo:${jornada.id}` && <EstadoGravacao estado={estadoGravacao} />}
               </div>
@@ -741,8 +758,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 const jogoEmDestaque = jogo.id === jogoDaLigacao
                 const guardado = prognosticosGuardados[jogo.id]
                 const palpite = palpites[jogo.id]
-                const editado = guardado && (palpite?.casa !== guardado.casa || palpite?.fora !== guardado.fora)
-                const rascunho = guardado ? editado : Boolean(palpite?.casa || palpite?.fora)
+                const rascunho = temRascunho(palpite, guardado)
                 const gravacaoDoJogo = estadoGravacao?.alvo === jogo.id ? estadoGravacao : null
 
                 return (
@@ -757,7 +773,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                         📅 {new Date(jogo.kickoff).toLocaleString('pt-PT')}
                       </span>
 
-                      {mostrarPendentes && (
+                      {mostrarPorPrazo && (
                         <span className={tempoRestante <= 3600000 ? 'pl-jogo-prazo pl-jogo-prazo-urgente' : 'pl-jogo-prazo'}>
                           {formatarPrazo(tempoRestante)}
                         </span>
@@ -884,7 +900,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                               ? 'A guardar...'
                               : '💾 Guardar prognóstico'}
                           </button>
-                          {editado && (
+                          {guardado && rascunho && (
                             <button type="button" className="pl-jogo-secundario pl-palpite-repor"
                               disabled={aGuardar !== null} onClick={() => reporPalpite(jogo.id)}>
                               Repor prognóstico guardado
