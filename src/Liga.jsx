@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { criarImagemResumoJornada, descarregarImagem } from './imagemResumoJornada'
 
 
 const estilos = `
@@ -304,8 +305,10 @@ function descreverMovimento(antes, depois) {
   return `${sentido} ${diferenca} ${diferenca === 1 ? 'posição' : 'posições'} (${antes}.º → ${depois}.º).`
 }
 
-function ResumoJornada({ competicaoId, jornadaId }) {
+function ResumoJornada({ competicaoId, jornadaId, nome }) {
   const [estado, setEstado] = useState(null)
+  const [mensagemImagem, setMensagemImagem] = useState(null)
+  const [aPartilhar, setAPartilhar] = useState(false)
 
   useEffect(() => {
     const pedido = new AbortController()
@@ -325,6 +328,29 @@ function ResumoJornada({ competicaoId, jornadaId }) {
     return () => pedido.abort()
   }, [competicaoId, jornadaId])
 
+  async function partilhar() {
+    if (aPartilhar) return
+    setAPartilhar(true)
+    setMensagemImagem(null)
+    try {
+      const imagem = criarImagemResumoJornada(nome, estado,
+        descreverMovimento(estado.posicaoAnterior, estado.posicaoAtual))
+      const partilha = { title: `Predict League · ${nome}`, files: [imagem] }
+      if (navigator.share && navigator.canShare?.(partilha)) {
+        await navigator.share(partilha)
+      } else {
+        descarregarImagem(imagem)
+        setMensagemImagem({ texto: 'Imagem descarregada.' })
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        setMensagemImagem({ erro: true, texto: 'Não foi possível partilhar a imagem.' })
+      }
+    } finally {
+      setAPartilhar(false)
+    }
+  }
+
   return (
     <section className="pl-liga-meu-cartao" aria-labelledby="pl-resumo-jornada">
       <h3 id="pl-resumo-jornada" className="pl-liga-meu-titulo">O meu resumo da jornada</h3>
@@ -336,13 +362,19 @@ function ResumoJornada({ competicaoId, jornadaId }) {
           </p>
           <p>{descreverMovimento(estado.posicaoAnterior, estado.posicaoAtual)}</p>
           {estado.jogos.length > 0 && (
-            <ul>
-              {estado.jogos.map(jogo => <li key={jogo.id}>
-                <strong>{jogo.casa} {jogo.golosCasa}–{jogo.golosFora} {jogo.fora}</strong>
-                {' · '}{acertos[jogo.acerto]}
-                {jogo.pontos != null && ` · ${jogo.pontos} ${jogo.pontos === 1 ? 'ponto' : 'pontos'}`}
-              </li>)}
-            </ul>
+            <>
+              <ul>
+                {estado.jogos.map(jogo => <li key={jogo.id}>
+                  <strong>{jogo.casa} {jogo.golosCasa}–{jogo.golosFora} {jogo.fora}</strong>
+                  {' · '}{acertos[jogo.acerto]}
+                  {jogo.pontos != null && ` · ${jogo.pontos} ${jogo.pontos === 1 ? 'ponto' : 'pontos'}`}
+                </li>)}
+              </ul>
+              <button type="button" className="pl-liga-filtro" disabled={aPartilhar} onClick={partilhar}>
+                Partilhar imagem
+              </button>
+              {mensagemImagem && <p role={mensagemImagem.erro ? 'alert' : 'status'}>{mensagemImagem.texto}</p>}
+            </>
           )}
         </>
       )}
@@ -468,6 +500,7 @@ function Liga({ competicaoId, jornadaInicial }) {
   const jornadas = dados?.jornadas || []
   const jornadaIndisponivel = Boolean(dados && jornadaPedida && dados.jornadaSelecionada !== jornadaPedida)
   const jornadaSelecionada = jornadaIndisponivel ? '' : dados?.jornadaSelecionada || ''
+  const jornada = jornadas.find(item => item.id === jornadaSelecionada)
   const utilizadorAtual = dados?.utilizadorAtual || null
   const classificacaoVisivel = tipoClassificacao === 'geral' ? dados?.geral || []
     : tipoClassificacao === 'concluidas' ? dados?.acumulada || [] : dados?.porJornada || []
@@ -613,7 +646,8 @@ function Liga({ competicaoId, jornadaInicial }) {
 
             {tipoClassificacao === 'jornada' && (
               <ResumoJornada key={`${competicaoId}:${jornadaSelecionada}`}
-                competicaoId={competicaoId} jornadaId={jornadaSelecionada} />
+                competicaoId={competicaoId} jornadaId={jornadaSelecionada}
+                nome={jornada?.nome || (jornada?.numero ? `Jornada ${jornada.numero}` : 'Resumo da jornada')} />
             )}
 
             {meusDadosVisiveis && (

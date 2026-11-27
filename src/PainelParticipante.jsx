@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import JogosParticipante from './JogosParticipante'
-import Liga from './Liga'
-import HallDaFama from './HallDaFama'
-import Estatisticas from './Estatisticas'
-import Duelo from './Duelo'
-import Conquistas from './Conquistas'
-import Notificacoes from './Notificacoes'
-import Chat from './Chat'
+import SecaoCarregavel from './SecaoCarregavel'
+const JogosParticipante = lazy(() => import('./JogosParticipante'))
+const Liga = lazy(() => import('./Liga'))
+const HallDaFama = lazy(() => import('./HallDaFama'))
+const Estatisticas = lazy(() => import('./Estatisticas'))
+const Duelo = lazy(() => import('./Duelo'))
+const Conquistas = lazy(() => import('./Conquistas'))
+const Notificacoes = lazy(() => import('./Notificacoes'))
+const Chat = lazy(() => import('./Chat'))
 
 
 
@@ -283,9 +284,9 @@ useEffect(() => {
             {secaoAtual?.icone} {secaoAtual?.nome}
           </h2>
           {competicaoId
-  ? componentes[pagina]
-  : <p>A aguardar uma competição ativa...</p>}
-               </main>
+            ? <SecaoCarregavel key={pagina}>{componentes[pagina]}</SecaoCarregavel>
+            : <p>A aguardar uma competição ativa...</p>}
+        </main>
       )}
     </div>
   )

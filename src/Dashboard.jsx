@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import JogosParticipante from './JogosParticipante'
-import Liga from './Liga'
-import Participantes from './Participantes'
-import Jornadas from './Jornadas'
-import HallDaFama from './HallDaFama'
-import Estatisticas from './Estatisticas'
-import Duelo from './Duelo'
-import Conquistas from './Conquistas'
-import Notificacoes from './Notificacoes'
-import Chat from './Chat'
-import GerirCompeticoes from './GerirCompeticoes'
+import SecaoCarregavel from './SecaoCarregavel'
+const JogosParticipante = lazy(() => import('./JogosParticipante'))
+const Liga = lazy(() => import('./Liga'))
+const Participantes = lazy(() => import('./Participantes'))
+const Jornadas = lazy(() => import('./Jornadas'))
+const HallDaFama = lazy(() => import('./HallDaFama'))
+const Estatisticas = lazy(() => import('./Estatisticas'))
+const Duelo = lazy(() => import('./Duelo'))
+const Conquistas = lazy(() => import('./Conquistas'))
+const Notificacoes = lazy(() => import('./Notificacoes'))
+const Chat = lazy(() => import('./Chat'))
+const GerirCompeticoes = lazy(() => import('./GerirCompeticoes'))
+const DiagnosticoPush = lazy(() => import('./DiagnosticoPush'))
 
 const secoes = [
   { id: 'competicoes', icone: '🏆', nome: 'Gerir Competições', descricao: 'Cria e gere as competições' },
@@ -19,6 +21,7 @@ const secoes = [
   { id: 'jornadas', icone: '📅', nome: 'Jornadas', descricao: 'Gere as jornadas e os jogos' },
   { id: 'participantes', icone: '👥', nome: 'Participantes', descricao: 'Consulta e aprova participantes' },
   { id: 'notificacoes', icone: '🔔', nome: 'Notificações', descricao: 'Consulta os teus avisos de jogos, resultados e lembretes' },
+  { id: 'diagnostico-push', icone: '📡', nome: 'Diagnóstico de push', descricao: 'Acompanha a fila e as falhas dos avisos push' },
   { id: 'conquistas', icone: '🏅', nome: 'Conquistas', descricao: 'Descobre as tuas medalhas e acompanha o teu progresso' },
   { id: 'duelo', icone: '⚔️', nome: 'Duelo', descricao: 'Compara o teu desempenho com outro participante' },
   { id: 'estatisticas', icone: '📊', nome: 'Estatísticas', descricao: 'Consulta os números da competição' },
@@ -199,6 +202,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, destino, limparLigac
   const proximo = resumo.proximo
   const componentes = {
     competicoes: <GerirCompeticoes />,
+    'diagnostico-push': <DiagnosticoPush />,
     prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={destino?.tipo === 'jogo' ? destino.id : null} />,
     'prognosticos-pendentes': <JogosParticipante competicaoId={competicaoId} filtroInicial="por-prognosticar" />,
     'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={proximo?.id} />,
@@ -282,7 +286,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, destino, limparLigac
           <div className="pl-section-heading"><h2 className="pl-section-title">Explorar a competição</h2></div>
           <div className="pl-grid">
             {secoes.map(secao => (
-              <button type="button" key={secao.id} className="pl-card" onClick={() => setPagina(secao.id)} disabled={!competicaoId && secao.id !== 'competicoes'}>
+              <button type="button" key={secao.id} className="pl-card" onClick={() => setPagina(secao.id)} disabled={!competicaoId && !['competicoes', 'diagnostico-push'].includes(secao.id)}>
                 <span className="pl-card-icon" aria-hidden="true">{secao.icone}</span>
                 <h3>{secao.nome}</h3>
                 <p>{secao.descricao}</p>
@@ -295,7 +299,9 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, destino, limparLigac
           <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
             {secaoAtual?.icone} {secaoAtual?.nome}
           </h2>
-          {competicaoId || pagina === 'competicoes' ? componentes[pagina] : <p>A aguardar uma competição ativa.</p>}
+          {competicaoId || ['competicoes', 'diagnostico-push'].includes(pagina)
+            ? <SecaoCarregavel key={pagina}>{componentes[pagina]}</SecaoCarregavel>
+            : <p>A aguardar uma competição ativa.</p>}
         </main>
       )}
     </div>
