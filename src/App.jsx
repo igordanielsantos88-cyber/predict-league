@@ -212,6 +212,11 @@ function App() {
   const saidaEmCurso = useRef(false)
   useEffect(() => vigiarSessaoPush(setErroSaida), [])
   const [pedidoNotificacoes, setPedidoNotificacoes] = useState(0)
+  const [jogoDaLigacao, setJogoDaLigacao] = useState(() => {
+    const jogo = new URLSearchParams(window.location.search).get('jogo')
+    return jogo?.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jogo)
+      ? jogo.toLowerCase() : null
+  })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mensagem, setMensagem] = useState('')
@@ -360,6 +365,14 @@ function App() {
     }
   }
 
+  function limparLigacaoJogo() {
+    if (!jogoDaLigacao) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('jogo')
+    window.history.replaceState(window.history.state, '', url)
+    setJogoDaLigacao(null)
+  }
+
   async function terminarSessao() {
     if (saidaEmCurso.current) return
     saidaEmCurso.current = true
@@ -375,6 +388,7 @@ function App() {
       setPassword('')
       setMensagem('')
       setPedidoNotificacoes(0)
+      limparLigacaoJogo()
     } catch (error) {
       setErroSaida(error.message || 'Não foi possível terminar a sessão.')
     } finally {
@@ -414,7 +428,10 @@ function App() {
               className="pl-logout"
               aria-label="Abrir notificações"
               title="Notificações"
-              onClick={() => setPedidoNotificacoes(n => n + 1)}
+              onClick={() => {
+                limparLigacaoJogo()
+                setPedidoNotificacoes(n => n + 1)
+              }}
             >
               <span aria-hidden="true">🔔</span>
             </button>
@@ -432,8 +449,8 @@ function App() {
         {erroSaida && <p role="alert" style={{ padding: '12px 28px', color: '#fca5a5' }}>{erroSaida}</p>}
 
         {administrador
-          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} />
-          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} />}
+          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} jogoDaLigacao={jogoDaLigacao} limparLigacaoJogo={limparLigacaoJogo} />
+          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} jogoDaLigacao={jogoDaLigacao} limparLigacaoJogo={limparLigacaoJogo} />}
       </div>
     )
   }

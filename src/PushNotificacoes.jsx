@@ -92,7 +92,7 @@ export default function PushNotificacoes() {
       if (!vivo.current || seq !== sequencia.current) return
       setEstado(e => ({ ...e,
         id: acao === 'ativar' ? resultado : acao === 'desativar' ? null : e.id,
-        nota: acao === 'ativar' ? 'Dispositivo ativado para testes. Os avisos automáticos ainda não estão ligados.'
+        nota: acao === 'ativar' ? 'Notificações ativadas neste dispositivo.'
           : acao === 'desativar' ? 'Notificações desativadas neste dispositivo.' : resultado,
       }))
     }).catch(error => {
@@ -108,10 +108,10 @@ export default function PushNotificacoes() {
   if (estado.fase === 'oculto') return null
   return <section className="pn-item" aria-label="Notificações neste dispositivo" style={{ marginBottom: 20 }}>
     <h3>🔔 Notificações neste dispositivo</h3>
-    <p className="pn-nota">Ativa este dispositivo e envia um teste para confirmar a receção. O envio automático para os participantes ainda está em preparação.</p>
+    <p className="pn-nota">Recebe avisos de novos jogos, lembretes de prognósticos em falta e resultados publicados.</p>
     {estado.fase === 'carregar' && <p role="status">A preparar as notificações…</p>}
     {estado.fase === 'pronto' && <>
-      <p>{estado.id ? 'Este dispositivo está ativado para testes.' : 'Este dispositivo ainda não está ativado.'}</p>
+      <p>{estado.id ? 'As notificações estão ativas neste dispositivo.' : 'As notificações estão desativadas neste dispositivo.'}</p>
       {Notification.permission === 'denied' && <p className="pn-nota">A permissão está bloqueada. Altera-a nas definições do navegador ou da aplicação e volta a verificar.</p>}
       <div className="pn-acoes">
         {!estado.id && <button type="button" disabled={ocupado || Notification.permission === 'denied'} onClick={() => executar('ativar')}>Ativar notificações</button>}

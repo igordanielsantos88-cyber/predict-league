@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
 const COMPETICAO_ID = '3d0f0048-d5b9-418e-b5f5-57d19782fe92'
@@ -86,6 +86,12 @@ const estilos = `
 
   .pl-jogo-cartao:last-child {
     margin-bottom: 0;
+  }
+
+  .pl-jogo-cartao:focus {
+    outline: 2px solid #f0d477;
+    outline-offset: 3px;
+    scroll-margin-top: 16px;
   }
 
   .pl-jogo-topo {
@@ -248,7 +254,7 @@ const estilos = `
   }
 `
 
-function JogosParticipante() {
+function JogosParticipante({ jogoDaLigacao }) {
   const [jogos, setJogos] = useState([])
   const [jornadas, setJornadas] = useState([])
   const [palpites, setPalpites] = useState({})
@@ -260,6 +266,14 @@ function JogosParticipante() {
   const [prognosticosOutros, setPrognosticosOutros] = useState({})
   const [jogoAberto, setJogoAberto] = useState(null)
   const [aCarregarPrognosticos, setACarregarPrognosticos] = useState(null)
+  const cartaoDaLigacao = useRef(null)
+
+  useEffect(() => {
+    if (!jogoDaLigacao || aCarregar || erro) return
+    const cartao = cartaoDaLigacao.current
+    cartao?.focus({ preventScroll: true })
+    cartao?.scrollIntoView({ block: 'start' })
+  }, [jogoDaLigacao, aCarregar, erro])
 
   useEffect(() => {
     let ativo = true
@@ -317,7 +331,7 @@ function JogosParticipante() {
 
         const { data, error } = await supabase
           .from('matches')
-          .select('id, home_team, away_team, kickoff, is_bonus, jornada_id, status')
+          .select('id, home_team, away_team, kickoff, is_bonus, jornada_id, status, home_score, away_score')
           .eq('competition_id', COMPETICAO_ID)
           .eq('season_id', epoca.id)
           .order('kickoff', { ascending: true })
@@ -587,6 +601,9 @@ async function guardarTodosPalpites(jogosDaJornada) {
       ),
     }))
     .filter(jornada => jornada.jogos.length > 0)
+  const jogoDaLigacaoDisponivel = jogoDaLigacao && jogos.some(jogo =>
+    jogo.id === jogoDaLigacao && jornadas.some(jornada => jornada.id === jogo.jornada_id)
+  )
 
   if (aCarregar) {
     return <p>A carregar os jogos...</p>
@@ -607,6 +624,10 @@ async function guardarTodosPalpites(jogosDaJornada) {
       <p className="pl-jogos-subtitulo">
         Faz os teus prognósticos e acompanha os pontos conquistados.
       </p>
+
+      {jogoDaLigacao && !jogoDaLigacaoDisponivel && (
+        <p role="status">O jogo deste aviso já não está disponível na época ativa.</p>
+      )}
 
       <div className="pl-jogos-filtros">
         {[
@@ -658,9 +679,15 @@ async function guardarTodosPalpites(jogosDaJornada) {
                 const resultado = historico.find(
                   item => item.match_id === jogo.id
                 )
+                const jogoEmDestaque = jogo.id === jogoDaLigacao
 
                 return (
-                  <div key={jogo.id} className="pl-jogo-cartao">
+                  <div key={jogo.id} className="pl-jogo-cartao"
+                    ref={jogoEmDestaque ? cartaoDaLigacao : undefined}
+                    tabIndex={jogoEmDestaque ? -1 : undefined}
+                    role={jogoEmDestaque ? 'group' : undefined}
+                    aria-label={jogoEmDestaque ? `${jogo.home_team} vs ${jogo.away_team}` : undefined}
+                  >
                     <div className="pl-jogo-topo">
                       <span className="pl-jogo-data">
                         📅 {new Date(jogo.kickoff).toLocaleString('pt-PT')}
@@ -720,6 +747,13 @@ async function guardarTodosPalpites(jogosDaJornada) {
                         )}
                       </div>
                     )}
+
+                    {(!resultado || resultado.points === null) &&
+                      jogo.status === 'finished' && jogo.home_score != null && jogo.away_score != null && (
+                        <div className="pl-jogo-resultado">
+                          <p>🏁 Resultado oficial: {jogo.home_score}–{jogo.away_score}</p>
+                        </div>
+                      )}
 
                     <div className="pl-jogo-divisor" />
 

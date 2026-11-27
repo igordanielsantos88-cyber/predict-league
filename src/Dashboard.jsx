@@ -70,8 +70,8 @@ const estilos = `
   @media (prefers-reduced-motion:reduce) { .pl-card,.pl-gold-button { transition:none; } .pl-card:hover,.pl-gold-button:hover { transform:none; } }
 `
 
-function Dashboard({ pedidoNotificacoes = 0 }) {
-  const [pagina, setPagina] = useState('inicio')
+function Dashboard({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo }) {
+  const [pagina, setPagina] = useState(jogoDaLigacao ? 'prognosticos' : 'inicio')
   useEffect(() => {
     if (pedidoNotificacoes > 0) setPagina('notificacoes')
   }, [pedidoNotificacoes])
@@ -188,7 +188,7 @@ function Dashboard({ pedidoNotificacoes = 0 }) {
 
   const componentes = {
     competicoes: <GerirCompeticoes />,
-    prognosticos: <JogosParticipante competicaoId={competicaoId} />,
+    prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={jogoDaLigacao} />,
     liga: <Liga competicaoId={competicaoId} />,
     jornadas: <Jornadas competicaoId={competicaoId} />,
     participantes: <Participantes competicaoId={competicaoId} />,
@@ -222,7 +222,10 @@ function Dashboard({ pedidoNotificacoes = 0 }) {
           </div>
         </div>
         {pagina !== 'inicio' && (
-          <button type="button" className="pl-back" onClick={() => setPagina('inicio')}>← Dashboard</button>
+          <button type="button" className="pl-back" onClick={() => {
+            limparLigacaoJogo()
+            setPagina('inicio')
+          }}>← Dashboard</button>
         )}
       </header>
 

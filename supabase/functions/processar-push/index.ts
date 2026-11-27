@@ -73,7 +73,7 @@ export async function handler(req: Request): Promise<Response> {
           keys: { p256dh: atual.p256dh, auth: atual.auth } }, JSON.stringify({
           title: Array.from(String(atual.title)).slice(0,100).join(''),
           body: Array.from(String(atual.body)).slice(0,500).join(''),
-          tag: 'predict-league-' + atual.id, url: '/',
+          tag: 'predict-league-' + atual.id, matchId: atual.matchId,
         }), {
           vapidDetails: { subject, publicKey, privateKey }, contentEncoding: 'aes128gcm',
           TTL: Math.min(60, segundos), urgency: 'normal', topic: String(atual.id).replaceAll('-', ''),

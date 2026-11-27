@@ -185,6 +185,5 @@ export default function Notificacoes() {
       </button>}
     </li>)}</ul>
     <p className="pn-nota">Esta lista atualiza a cada minuto enquanto está aberta e visível. Os avisos refletem o momento em que foram criados; consulta os jogos para veres os dados atuais.</p>
-    <p className="pn-nota">O envio automático de notificações fora da aplicação ainda não está ativado.</p>
   </section>
 }
