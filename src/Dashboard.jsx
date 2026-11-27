@@ -48,6 +48,10 @@ const estilos = `
   .pl-refresh:disabled { opacity:.55; cursor:wait; }
   .pl-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:28px; }
   .pl-stat { background:linear-gradient(145deg,#1b2535,#111722); border:1px solid #3d3b30; border-radius:16px; padding:20px; min-width:0; }
+  button.pl-stat { text-align:left; font:inherit; border-color:#8f722e; cursor:pointer; }
+  button.pl-stat:hover { border-color:#f0d477; }
+  button.pl-stat:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
+  button.pl-stat:disabled { opacity:.55; cursor:default; }
   .pl-stat-icon { font-size:22px; display:block; margin-bottom:12px; }
   .pl-stat-label { display:block; color:#a7b5c9; font-size:13px; margin-bottom:9px; }
   .pl-stat-value { display:block; color:#f0d477; font-size:clamp(21px,2.5vw,29px); font-weight:bold; line-height:1.2; overflow-wrap:anywhere; }
@@ -137,15 +141,17 @@ function Dashboard({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo })
       if (resultadoEpoca.data?.id) {
         const { data: jogos, error: erroJogos } = await supabase
           .from('matches')
-          .select('id,home_team,away_team,kickoff,status')
+          .select('id,home_team,away_team,kickoff')
           .eq('competition_id', competicaoId)
           .eq('season_id', resultadoEpoca.data.id)
+          .eq('status', 'scheduled')
+          .not('jornada_id', 'is', null)
           .gt('kickoff', new Date().toISOString())
           .order('kickoff', { ascending: true })
         if (erroJogos) throw erroJogos
         if (signal.aborted) return
 
-        const futuros = (jogos || []).filter(jogo => jogo.status !== 'finished')
+        const futuros = jogos || []
         totalJogos = futuros.length
         proximo = futuros[0] || null
 
@@ -186,9 +192,12 @@ function Dashboard({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo })
     return () => controller.abort()
   }, [pagina, atualizacao, carregarResumo])
 
+  const proximo = resumo.proximo
   const componentes = {
     competicoes: <GerirCompeticoes />,
     prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={jogoDaLigacao} />,
+    'prognosticos-pendentes': <JogosParticipante competicaoId={competicaoId} filtroInicial="por-prognosticar" />,
+    'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={proximo?.id} />,
     liga: <Liga competicaoId={competicaoId} />,
     jornadas: <Jornadas competicaoId={competicaoId} />,
     participantes: <Participantes competicaoId={competicaoId} />,
@@ -199,15 +208,14 @@ function Dashboard({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo })
     'hall-da-fama': <HallDaFama competicaoId={competicaoId} />,
     chat: <Chat />,
      }
-  const secaoAtual = secoes.find(s => s.id === pagina)
-  const proximo = resumo.proximo
+  const secaoAtual = secoes.find(s => s.id === (['prognosticos-pendentes', 'proximo-jogo'].includes(pagina) ? 'prognosticos' : pagina))
   const proximoData = proximo ? new Date(proximo.kickoff).toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null
 
   const indicadores = [
     { icone: '🏆', titulo: 'A minha posição', valor: resumo.posicao ? `${resumo.posicao}.º` : '—', detalhe: 'Classificação geral' },
     { icone: '⭐', titulo: 'Os meus pontos', valor: resumo.pontos ?? '—', detalhe: 'Época ativa' },
-    { icone: '📅', titulo: 'Próximo jogo', valor: proximoData || 'Sem jogos', detalhe: proximo ? `${proximo.home_team} vs ${proximo.away_team}` : 'Nenhum jogo futuro agendado' },
-    { icone: '🎯', titulo: 'Por apostar', valor: resumo.porFazer ?? '—', detalhe: `De ${resumo.totalJogos} jogos futuros` },
+    { icone: '📅', titulo: 'Próximo jogo', destino: proximo ? 'proximo-jogo' : null, valor: proximoData || 'Sem jogos', detalhe: proximo ? `${proximo.home_team} vs ${proximo.away_team}` : 'Nenhum jogo futuro agendado' },
+    { icone: '🎯', titulo: 'Por prognosticar', destino: 'prognosticos-pendentes', valor: resumo.porFazer ?? '—', detalhe: resumo.totalJogos === 1 ? 'De 1 jogo futuro' : `De ${resumo.totalJogos} jogos futuros` },
   ]
 
   return (
@@ -249,14 +257,22 @@ function Dashboard({ pedidoNotificacoes = 0, jogoDaLigacao, limparLigacaoJogo })
           </div>
           {erroResumo && <p className="pl-info pl-info-error" role="alert">Não foi possível atualizar os indicadores: {erroResumo}</p>}
           <div className="pl-stats" aria-busy={aCarregarResumo}>
-            {indicadores.map(indicador => (
-              <div className="pl-stat" key={indicador.titulo}>
-                <span className="pl-stat-icon" aria-hidden="true">{indicador.icone}</span>
-                <span className="pl-stat-label">{indicador.titulo}</span>
-                <strong className="pl-stat-value">{aCarregarCompeticao || aCarregarResumo ? '…' : erroResumo || erroCompeticao ? '—' : indicador.valor}</strong>
-                <span className="pl-stat-detail">{aCarregarCompeticao || aCarregarResumo ? 'A carregar...' : erroResumo || erroCompeticao ? 'Verifica a competição ativa' : indicador.detalhe}</span>
-              </div>
-            ))}
+            {indicadores.map(indicador => {
+              const Cartao = indicador.destino ? 'button' : 'div'
+              const acao = indicador.destino ? {
+                type: 'button',
+                disabled: !competicaoId,
+                onClick: () => setPagina(indicador.destino),
+              } : {}
+              return (
+                <Cartao className="pl-stat" key={indicador.titulo} {...acao}>
+                  <span className="pl-stat-icon" aria-hidden="true">{indicador.icone}</span>
+                  <span className="pl-stat-label">{indicador.titulo}{indicador.destino && <span aria-hidden="true"> →</span>}</span>
+                  <strong className="pl-stat-value">{aCarregarCompeticao || aCarregarResumo ? '…' : erroResumo || erroCompeticao ? '—' : indicador.valor}</strong>
+                  <span className="pl-stat-detail">{aCarregarCompeticao || aCarregarResumo ? 'A carregar...' : erroResumo || erroCompeticao ? 'Verifica a competição ativa' : indicador.detalhe}</span>
+                </Cartao>
+              )
+            })}
           </div>
 
           <div className="pl-section-heading"><h2 className="pl-section-title">Explorar a competição</h2></div>

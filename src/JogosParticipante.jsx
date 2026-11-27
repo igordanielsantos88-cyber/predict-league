@@ -2,8 +2,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
-const COMPETICAO_ID = '3d0f0048-d5b9-418e-b5f5-57d19782fe92'
-
 const estilos = `
   .pl-jogos {
     color: #f8fafc;
@@ -107,6 +105,36 @@ const estilos = `
     color: #94a3b8;
     font-size: 13px;
   }
+
+  .pl-jogo-prazo {
+    color: #cbd5e1;
+    font-size: 13px;
+  }
+
+  .pl-jogo-prazo-urgente {
+    color: #f0d477;
+    font-weight: bold;
+  }
+
+  .pl-gravacao {
+    margin: 10px 0 0;
+    color: #86efac;
+    font-size: 14px;
+  }
+
+  .pl-gravacao-erro {
+    color: #fca5a5;
+  }
+
+  .pl-palpite-estado {
+    color: #94a3b8;
+    font-size: 13px;
+    margin: 0 0 12px;
+  }
+
+  .pl-palpite-guardado { color: #86efac; }
+  .pl-palpite-rascunho { color: #f0d477; }
+  .pl-palpite-repor { margin: 8px; }
 
   .pl-jogo-bonus {
     display: inline-block;
@@ -254,17 +282,49 @@ const estilos = `
   }
 `
 
-function JogosParticipante({ jogoDaLigacao }) {
+function lerPrognostico(jogo, palpite) {
+  if (palpite?.casa == null || palpite.fora == null || palpite.casa === '' || palpite.fora === '') return null
+  const casa = Number(palpite.casa)
+  const fora = Number(palpite.fora)
+  if (!Number.isInteger(casa) || !Number.isInteger(fora) || casa < 0 || fora < 0) return null
+  return { match_id: jogo.id, home_goals: casa, away_goals: fora }
+}
+
+function formatarPrazo(milissegundos) {
+  const minutos = Math.floor(milissegundos / 60000)
+  if (minutos === 0) return 'Fecha em menos de 1 min'
+  if (minutos < 60) return `Fecha em ${minutos} min`
+  if (minutos < 1440) {
+    const horas = Math.floor(minutos / 60)
+    const resto = minutos % 60
+    return resto ? `Fecha em ${horas} h ${resto} min` : `Fecha em ${horas} h`
+  }
+  const dias = Math.floor(minutos / 1440)
+  return dias === 1 ? 'Fecha em 1 dia' : `Fecha em ${dias} dias`
+}
+
+function EstadoGravacao({ estado }) {
+  if (!estado) return null
+  return (
+    <p className={estado.erro ? 'pl-gravacao pl-gravacao-erro' : 'pl-gravacao'}
+      role={estado.erro ? 'alert' : 'status'}>
+      {estado.texto}
+    </p>
+  )
+}
+
+function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos' }) {
   const [jogos, setJogos] = useState([])
   const [jornadas, setJornadas] = useState([])
   const [palpites, setPalpites] = useState({})
-  const [prognosticosGuardados, setPrognosticosGuardados] = useState(() => new Set())
+  const [prognosticosGuardados, setPrognosticosGuardados] = useState({})
   const [historico, setHistorico] = useState([])
-  const [filtroJogos, setFiltroJogos] = useState('todos')
+  const [filtroJogos, setFiltroJogos] = useState(filtroInicial)
   const [agora, setAgora] = useState(Date.now)
   const [aCarregar, setACarregar] = useState(true)
   const [erro, setErro] = useState('')
   const [aGuardar, setAGuardar] = useState(null)
+  const [estadoGravacao, setEstadoGravacao] = useState(null)
   const [prognosticosOutros, setPrognosticosOutros] = useState({})
   const [jogoAberto, setJogoAberto] = useState(null)
   const [aCarregarPrognosticos, setACarregarPrognosticos] = useState(null)
@@ -305,7 +365,7 @@ function JogosParticipante({ jogoDaLigacao }) {
         const { data: epoca, error: erroEpoca } = await supabase
           .from('seasons')
           .select('id')
-          .eq('competition_id', COMPETICAO_ID)
+          .eq('competition_id', competicaoId)
           .eq('status', 'active')
           .single()
 
@@ -335,7 +395,7 @@ function JogosParticipante({ jogoDaLigacao }) {
         const { data, error } = await supabase
           .from('matches')
           .select('id, home_team, away_team, kickoff, is_bonus, jornada_id, status, home_score, away_score')
-          .eq('competition_id', COMPETICAO_ID)
+          .eq('competition_id', competicaoId)
           .eq('season_id', epoca.id)
           .order('kickoff', { ascending: true })
 
@@ -384,7 +444,7 @@ function JogosParticipante({ jogoDaLigacao }) {
         }
 
         setPalpites(palpitesGuardados)
-        setPrognosticosGuardados(new Set(Object.keys(palpitesGuardados)))
+        setPrognosticosGuardados(palpitesGuardados)
 
         if ((data || []).length > 0) {
           const { data: pontuacoes, error: erroPontuacoes } =
@@ -417,136 +477,91 @@ function JogosParticipante({ jogoDaLigacao }) {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
-  async function guardarPalpite(jogo) {
-    const palpite = palpites[jogo.id]
+  function alterarPalpite(jogoId, equipa, golos) {
+    setPalpites(anteriores => ({
+      ...anteriores,
+      [jogoId]: { ...anteriores[jogoId], [equipa]: golos },
+    }))
+    setEstadoGravacao(null)
+  }
 
-    if (
-      palpite?.casa === undefined ||
-      palpite?.fora === undefined ||
-      palpite.casa === '' ||
-      palpite.fora === ''
-    ) {
-      alert('Preenche os golos das duas equipas.')
-      return
-    }
+  function reporPalpite(jogoId) {
+    setPalpites(anteriores => ({ ...anteriores, [jogoId]: prognosticosGuardados[jogoId] }))
+    setEstadoGravacao(null)
+  }
 
-    const casa = Number(palpite.casa)
-    const fora = Number(palpite.fora)
-
-    if (
-      !Number.isInteger(casa) ||
-      !Number.isInteger(fora) ||
-      casa < 0 ||
-      fora < 0
-    ) {
-      alert('Introduz números inteiros iguais ou superiores a zero.')
-      return
-    }
-
-    if (new Date(jogo.kickoff).getTime() <= Date.now()) {
-      alert('O prazo para este jogo já terminou.')
-      return
-    }
-
-    setAGuardar(jogo.id)
-
+  async function guardarPrognosticos(alvo, dados) {
+    setAGuardar(alvo)
+    setEstadoGravacao(null)
     try {
-      const { data: { user }, error: erroUtilizador } =
-        await supabase.auth.getUser()
-
+      const { data: { user }, error: erroUtilizador } = await supabase.auth.getUser()
       if (erroUtilizador || !user) {
-        alert('Tens de iniciar sessão para guardar o prognóstico.')
+        setEstadoGravacao({ alvo, erro: true, texto: 'Inicia sessão para guardar os prognósticos.' })
         return
       }
 
       const { error } = await supabase
         .from('predictions')
-        .upsert(
-          {
-            match_id: jogo.id,
-            user_id: user.id,
-            home_goals: casa,
-            away_goals: fora,
-          },
-          { onConflict: 'match_id,user_id' }
-        )
+        .upsert(dados.map(dado => ({ ...dado, user_id: user.id })), { onConflict: 'match_id,user_id' })
+      if (error) throw error
 
-      if (error) {
-        alert('Não foi possível guardar: ' + error.message)
-      } else {
-        setPrognosticosGuardados(guardados => new Set([...guardados, jogo.id]))
-        alert('Prognóstico guardado com sucesso! ⚽')
-      }
+      const guardados = Object.fromEntries(dados.map(dado => [
+        dado.match_id, { casa: String(dado.home_goals), fora: String(dado.away_goals) },
+      ]))
+      setPrognosticosGuardados(anteriores => ({ ...anteriores, ...guardados }))
+      setPalpites(anteriores => ({ ...anteriores, ...guardados }))
+      setEstadoGravacao({
+        alvo,
+        texto: dados.length === 1 ? 'Prognóstico guardado.' : `${dados.length} prognósticos guardados.`,
+      })
     } catch {
-      alert('Ocorreu um erro ao guardar o prognóstico.')
+      setEstadoGravacao({ alvo, erro: true, texto: 'Não foi possível guardar. Tenta novamente.' })
     } finally {
       setAGuardar(null)
     }
   }
-async function guardarTodosPalpites(jogosDaJornada) {
-  const jogosValidos = jogosDaJornada.filter(jogo => {
-    const palpite = palpites[jogo.id]
 
-    if (new Date(jogo.kickoff).getTime() <= Date.now()) {
-      return false
-    }
-
-    if (!palpite || palpite.casa === '' || palpite.fora === '') {
-      return false
-    }
-
-    const casa = Number(palpite.casa)
-    const fora = Number(palpite.fora)
-
-    return (
-      Number.isInteger(casa) &&
-      Number.isInteger(fora) &&
-      casa >= 0 &&
-      fora >= 0
-    )
-  })
-
-  if (jogosValidos.length === 0) {
-    alert('Não existem prognósticos válidos para guardar.')
-    return
-  }
-
-  setAGuardar('todos')
-
-  try {
-    const { data: { user }, error: erroUtilizador } =
-      await supabase.auth.getUser()
-
-    if (erroUtilizador || !user) {
-      alert('Tens de iniciar sessão para guardar os prognósticos.')
+  function guardarPalpite(jogo) {
+    if (aGuardar !== null) return
+    const alvo = jogo.id
+    const palpite = palpites[alvo]
+    if (palpite?.casa == null || palpite.fora == null || palpite.casa === '' || palpite.fora === '') {
+      setEstadoGravacao({ alvo, erro: true, texto: 'Preenche os golos das duas equipas.' })
       return
     }
 
-    const dados = jogosValidos.map(jogo => ({
-      match_id: jogo.id,
-      user_id: user.id,
-      home_goals: Number(palpites[jogo.id].casa),
-      away_goals: Number(palpites[jogo.id].fora),
-    }))
-
-    const { error } = await supabase
-      .from('predictions')
-      .upsert(dados, { onConflict: 'match_id,user_id' })
-
-    if (error) {
-      alert('Erro ao guardar: ' + error.message)
-    } else {
-      setPrognosticosGuardados(guardados => new Set([...guardados, ...dados.map(dado => dado.match_id)]))
-      alert(`✅ ${dados.length} prognóstico(s) guardado(s)!`)
+    const dados = lerPrognostico(jogo, palpite)
+    if (!dados) {
+      setEstadoGravacao({ alvo, erro: true, texto: 'Introduz números inteiros iguais ou superiores a zero.' })
+      return
     }
-  } catch {
-    alert('Ocorreu um erro ao guardar os prognósticos.')
-  } finally {
-    setAGuardar(null)
+
+    if (new Date(jogo.kickoff).getTime() <= Date.now()) {
+      setEstadoGravacao({ alvo, erro: true, texto: 'O prazo para este jogo já terminou.' })
+      return
+    }
+
+    guardarPrognosticos(alvo, [dados])
   }
-}
+
+  function guardarTodosPalpites(alvo, jogosDoGrupo) {
+    if (aGuardar !== null) return
+    const momento = Date.now()
+    const dados = jogosDoGrupo
+      .filter(jogo => new Date(jogo.kickoff).getTime() > momento)
+      .map(jogo => lerPrognostico(jogo, palpites[jogo.id]))
+      .filter(Boolean)
+
+    if (!dados.length) {
+      setEstadoGravacao({ alvo, erro: true, texto: 'Não existem prognósticos válidos para guardar.' })
+      return
+    }
+
+    guardarPrognosticos(alvo, dados)
+  }
+
   async function verPrognosticos(jogo) {
     if (jogoAberto === jogo.id) {
       setJogoAberto(null)
@@ -589,7 +604,7 @@ async function guardarTodosPalpites(jogosDaJornada) {
     jogo.status === 'scheduled' &&
     new Date(jogo.kickoff).getTime() > agora &&
     idsJornadas.has(jogo.jornada_id) &&
-    !prognosticosGuardados.has(jogo.id)
+    !prognosticosGuardados[jogo.id]
   ).map(jogo => jogo.id))
 
   const jogosFiltrados = jogos.filter(jogo => {
@@ -608,14 +623,24 @@ async function guardarTodosPalpites(jogosDaJornada) {
     return true
   })
 
-  const jogosPorJornada = jornadas
-    .map(jornada => ({
-      ...jornada,
-      jogos: jogosFiltrados.filter(
-        jogo => jogo.jornada_id === jornada.id
-      ),
-    }))
-    .filter(jornada => jornada.jogos.length > 0)
+  const mostrarPendentes = filtroJogos === 'por-prognosticar'
+  const grupos = mostrarPendentes
+    ? (jogosFiltrados.length ? [{
+        id: 'pendentes',
+        nome: 'Jogos por prognosticar',
+        jogos: jogosFiltrados.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff)),
+      }] : [])
+    : jornadas
+      .map(jornada => ({
+        ...jornada,
+        jogos: jogosFiltrados.filter(jogo => jogo.jornada_id === jornada.id),
+      }))
+      .filter(jornada => jornada.jogos.length > 0)
+  const mensagemForaDosCartoes = estadoGravacao && !grupos.some(grupo =>
+    estadoGravacao.alvo === `grupo:${grupo.id}` || grupo.jogos.some(jogo =>
+      estadoGravacao.alvo === jogo.id && new Date(jogo.kickoff).getTime() > agora
+    )
+  )
   const jogoDaLigacaoDisponivel = jogoDaLigacao && jogos.some(jogo =>
     jogo.id === jogoDaLigacao && jornadas.some(jornada => jornada.id === jogo.jornada_id)
   )
@@ -641,7 +666,7 @@ async function guardarTodosPalpites(jogosDaJornada) {
       </p>
 
       {jogoDaLigacao && !jogoDaLigacaoDisponivel && (
-        <p role="status">O jogo deste aviso já não está disponível na época ativa.</p>
+        <p role="status">O jogo selecionado já não está disponível na época ativa.</p>
       )}
 
       <div className="pl-jogos-filtros">
@@ -665,12 +690,14 @@ async function guardarTodosPalpites(jogosDaJornada) {
         ))}
       </div>
 
-      {jogosPorJornada.length === 0 ? (
-        <p role="status">{filtroJogos === 'por-prognosticar'
+      {mensagemForaDosCartoes && <EstadoGravacao estado={estadoGravacao} />}
+
+      {grupos.length === 0 ? (
+        <p role="status">{mostrarPendentes
           ? 'Não tens prognósticos em falta para os jogos com prazo aberto.'
           : 'Não existem jogos para o filtro selecionado.'}</p>
       ) : (
-        jogosPorJornada.map(jornada => (
+        grupos.map(jornada => (
           <details key={jornada.id} open className="pl-jornada">
             <summary className="pl-jornada-summary">
               📅 {jornada.nome || `Jornada ${jornada.numero}`}
@@ -679,26 +706,32 @@ async function guardarTodosPalpites(jogosDaJornada) {
             </summary>
 
             <div className="pl-jornada-conteudo">
-             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-  <button
-    type="button"
-    className="pl-jogo-botao"
-    onClick={() => guardarTodosPalpites(jornada.jogos)}
-    disabled={aGuardar !== null}
-  >
-    {aGuardar === 'todos'
-      ? '⏳ A guardar prognósticos...'
-      : '💾 Guardar todos os prognósticos'}
-  </button>
-</div> 
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <button
+                  type="button"
+                  className="pl-jogo-botao"
+                  onClick={() => guardarTodosPalpites(`grupo:${jornada.id}`, jornada.jogos)}
+                  disabled={aGuardar !== null}
+                >
+                  {aGuardar === `grupo:${jornada.id}`
+                    ? '⏳ A guardar prognósticos...'
+                    : '💾 Guardar todos os prognósticos'}
+                </button>
+                {estadoGravacao?.alvo === `grupo:${jornada.id}` && <EstadoGravacao estado={estadoGravacao} />}
+              </div>
               {jornada.jogos.map(jogo => {
-                const comecou =
-                  new Date(jogo.kickoff).getTime() <= agora
+                const tempoRestante = new Date(jogo.kickoff).getTime() - agora
+                const comecou = tempoRestante <= 0
 
                 const resultado = historico.find(
                   item => item.match_id === jogo.id
                 )
                 const jogoEmDestaque = jogo.id === jogoDaLigacao
+                const guardado = prognosticosGuardados[jogo.id]
+                const palpite = palpites[jogo.id]
+                const editado = guardado && (palpite?.casa !== guardado.casa || palpite?.fora !== guardado.fora)
+                const rascunho = guardado ? editado : Boolean(palpite?.casa || palpite?.fora)
+                const gravacaoDoJogo = estadoGravacao?.alvo === jogo.id ? estadoGravacao : null
 
                 return (
                   <div key={jogo.id} className="pl-jogo-cartao"
@@ -711,6 +744,12 @@ async function guardarTodosPalpites(jogosDaJornada) {
                       <span className="pl-jogo-data">
                         📅 {new Date(jogo.kickoff).toLocaleString('pt-PT')}
                       </span>
+
+                      {mostrarPendentes && (
+                        <span className={tempoRestante <= 3600000 ? 'pl-jogo-prazo pl-jogo-prazo-urgente' : 'pl-jogo-prazo'}>
+                          {formatarPrazo(tempoRestante)}
+                        </span>
+                      )}
 
                       {jogo.is_bonus && (
                         <span className="pl-jogo-bonus">
@@ -737,8 +776,7 @@ async function guardarTodosPalpites(jogosDaJornada) {
                       <div className="pl-jogo-resultado">
                         <p>
                           🎯 O teu prognóstico:
-                          {' '}{palpites[jogo.id]?.casa}–
-                          {palpites[jogo.id]?.fora}
+                          {' '}{guardado?.casa}–{guardado?.fora}
                         </p>
 
                         <p>
@@ -794,13 +832,8 @@ async function guardarTodosPalpites(jogosDaJornada) {
                             aria-label={`Golos de ${jogo.home_team}`}
                             placeholder="Casa"
                             value={palpites[jogo.id]?.casa ?? ''}
-                            onChange={e => setPalpites(anteriores => ({
-                              ...anteriores,
-                              [jogo.id]: {
-                                ...anteriores[jogo.id],
-                                casa: e.target.value,
-                              },
-                            }))}
+                            disabled={aGuardar !== null}
+                            onChange={e => alterarPalpite(jogo.id, 'casa', e.target.value)}
                           />
 
                           <span style={{
@@ -818,27 +851,34 @@ async function guardarTodosPalpites(jogosDaJornada) {
                             aria-label={`Golos de ${jogo.away_team}`}
                             placeholder="Fora"
                             value={palpites[jogo.id]?.fora ?? ''}
-                            onChange={e => setPalpites(anteriores => ({
-                              ...anteriores,
-                              [jogo.id]: {
-                                ...anteriores[jogo.id],
-                                fora: e.target.value,
-                              },
-                            }))}
+                            disabled={aGuardar !== null}
+                            onChange={e => alterarPalpite(jogo.id, 'fora', e.target.value)}
                           />
                         </div>
 
                         <div style={{ textAlign: 'center' }}>
+                          {(!gravacaoDoJogo || gravacaoDoJogo.erro) && (
+                            <p className={`pl-palpite-estado ${rascunho ? 'pl-palpite-rascunho' : guardado ? 'pl-palpite-guardado' : ''}`}>
+                              {rascunho ? 'Alterações por guardar' : guardado ? 'Guardado' : 'Por preencher'}
+                            </p>
+                          )}
                           <button
                             type="button"
                             className="pl-jogo-botao"
                             onClick={() => guardarPalpite(jogo)}
-                            disabled={aGuardar === jogo.id}
+                            disabled={aGuardar !== null}
                           >
                             {aGuardar === jogo.id
                               ? 'A guardar...'
                               : '💾 Guardar prognóstico'}
                           </button>
+                          {editado && (
+                            <button type="button" className="pl-jogo-secundario pl-palpite-repor"
+                              disabled={aGuardar !== null} onClick={() => reporPalpite(jogo.id)}>
+                              Repor prognóstico guardado
+                            </button>
+                          )}
+                          <EstadoGravacao estado={gravacaoDoJogo} />
                         </div>
                       </div>
                     ) : (
