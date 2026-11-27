@@ -1,17 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
-
-const competicoes = [
-  ['PL', 'Premier League'],
-  ['PD', 'La Liga'],
-  ['SA', 'Serie A'],
-  ['BL1', 'Bundesliga'],
-  ['FL1', 'Ligue 1'],
-  ['PPL', 'Liga Portugal'],
-  ['CL', 'Champions League'],
-  ['EL', 'Liga Europa'],
-  ['UECL', 'Liga Conferência'],
-]
+import { anoDaEpoca, competicoes } from './competicoesOficiais'
 
 const hora = new Intl.DateTimeFormat('pt-PT', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Lisbon',
@@ -29,14 +18,9 @@ const resultados = {
   indisponivel: 'Horário deixou de estar disponível.',
 }
 
-function anoInicial() {
-  const agora = new Date()
-  return String(agora.getFullYear() - (agora.getMonth() < 6 ? 1 : 0))
-}
-
 export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca, atualizarJogos }) {
   const [competicao, setCompeticao] = useState('PL')
-  const [ano, setAno] = useState(anoInicial)
+  const [ano, setAno] = useState(anoDaEpoca)
   const [jornada, setJornada] = useState('')
   const [jogos, setJogos] = useState(null)
   const [selecionados, setSelecionados] = useState([])

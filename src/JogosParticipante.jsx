@@ -1,6 +1,6 @@
 import EmblemaEquipa from './EmblemaEquipa'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { adicionarJogoAoCalendario } from './calendarioJogo'
 import { atualizarRascunho, lerRascunho, removerRascunhoEnviado } from './rascunhosPrognosticos'
@@ -76,6 +76,43 @@ const estilos = `
   .pl-jornada-conteudo {
     padding: 16px;
   }
+
+  .pl-jogos-dia { margin: 16px 0 8px; color: #cbd5e1; font-size: 14px; }
+  .pl-jogo-linha {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    width: 100%;
+    margin: 0 0 6px;
+    padding: 7px 10px;
+    text-align: left;
+    color: #f8fafc;
+    background: #172338;
+    border: 1px solid #39465b;
+    border-radius: 8px;
+    cursor: pointer;
+    --pl-emblema-tamanho: 27px;
+    --pl-emblema-letra: 10px;
+  }
+  .pl-jogo-linha:hover, .pl-jogo-linha[aria-expanded="true"] { border-color: #d4af37; }
+  .pl-jogo-linha-equipas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 320px;
+  }
+  .pl-jogo-linha-equipa {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-wrap: anywhere;
+  }
+  .pl-jogo-linha-equipa:first-child { justify-content: end; text-align: right; }
+  .pl-jogo-linha-marcador { font-weight: bold; color: #f0d477; white-space: nowrap; }
+  .pl-jogo-linha-estado { color: #cbd5e1; font-size: 12px; }
 
   .pl-jogo-cartao {
     background: #152033;
@@ -346,6 +383,38 @@ function formatarPrazo(milissegundos) {
   return dias === 1 ? 'Fecha em 1 dia' : `Fecha em ${dias} dias`
 }
 
+const diaDoJogo = new Intl.DateTimeFormat('pt-PT', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Lisbon',
+})
+const horaDoJogo = new Intl.DateTimeFormat('pt-PT', {
+  hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
+})
+
+function LinhaJogo({ jogo, aberto, alternar, golosCasa, golosFora, estado }) {
+  return (
+    <button type="button" className="pl-jogo-linha" aria-expanded={aberto}
+      aria-controls={`detalhe-${jogo.id}`} onClick={alternar}>
+      <span className="pl-jogo-linha-equipas">
+        <span className="pl-jogo-linha-equipa">
+          {jogo.home_team}
+          <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
+        </span>
+        <span className="pl-jogo-linha-marcador">
+          {golosCasa != null && golosFora != null ? (
+            <><span className="pl-jogo-etiqueta-sr">Resultado oficial: </span>{golosCasa}–{golosFora}</>
+          ) : <time dateTime={jogo.kickoff}>{horaDoJogo.format(new Date(jogo.kickoff))}</time>}
+        </span>
+        <span className="pl-jogo-linha-equipa">
+          <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
+          {jogo.away_team}
+        </span>
+      </span>
+      <span className="pl-jogo-linha-estado">{estado}{jogo.is_bonus && ' · Bónus'}</span>
+      <span aria-hidden="true">{aberto ? '▴' : '▾'}</span>
+    </button>
+  )
+}
+
 function EstadoGravacao({ estado }) {
   if (!estado) return null
   return (
@@ -371,12 +440,16 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   const [prognosticosOutros, setPrognosticosOutros] = useState({})
   const [jogoAberto, setJogoAberto] = useState(null)
   const [aCarregarPrognosticos, setACarregarPrognosticos] = useState(null)
+  const [detalhe, setDetalhe] = useState(null)
+  const detalheAberto = detalhe && detalhe.ligacao === jogoDaLigacao ? detalhe.id : jogoDaLigacao
   const cartaoDaLigacao = useRef(null)
   const contaDosPalpites = useRef(null)
 
   useEffect(() => {
     if (!jogoDaLigacao || aCarregar || erro) return
     const cartao = cartaoDaLigacao.current
+    const jornada = cartao?.closest('details')
+    if (jornada) jornada.open = true
     cartao?.focus({ preventScroll: true })
     cartao?.scrollIntoView({ block: 'start' })
   }, [jogoDaLigacao, aCarregar, erro])
@@ -701,7 +774,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
       .filter(jornada => jornada.jogos.length > 0)
   const mensagemForaDosCartoes = estadoGravacao && !grupos.some(grupo =>
     estadoGravacao.alvo === `grupo:${grupo.id}` || grupo.jogos.some(jogo =>
-      estadoGravacao.alvo === jogo.id && new Date(jogo.kickoff).getTime() > agora
+      estadoGravacao.alvo === jogo.id && detalheAberto === jogo.id && new Date(jogo.kickoff).getTime() > agora
     )
   )
   const jogoDaLigacaoDisponivel = jogoDaLigacao && jogos.some(jogo =>
@@ -785,7 +858,10 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 </button>
                 {estadoGravacao?.alvo === `grupo:${jornada.id}` && <EstadoGravacao estado={estadoGravacao} />}
               </div>
-              {jornada.jogos.map(jogo => {
+              {jornada.jogos.map((jogo, indice) => {
+                const dia = diaDoJogo.format(new Date(jogo.kickoff))
+                const anterior = jornada.jogos[indice - 1]
+                const novoDia = !anterior || diaDoJogo.format(new Date(anterior.kickoff)) !== dia
                 const tempoRestante = new Date(jogo.kickoff).getTime() - agora
                 const comecou = tempoRestante <= 0
 
@@ -802,8 +878,15 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 const golosFora = temMarcador ? jogo.away_score : resultado?.away_score
                 const podePrognosticar = jogo.status === 'scheduled' && tempoRestante > 0
 
-                return (
-                  <div key={jogo.id} className="pl-jogo-cartao"
+                const aberto = detalheAberto === jogo.id
+                const estado = podePrognosticar
+                  ? rascunho ? 'Alterações por guardar' : guardado ? 'Prognóstico guardado' : 'Por prognosticar'
+                  : !guardado ? 'Sem prognóstico' : resultado?.points != null
+                    ? `${guardado.casa}–${guardado.fora} · ${resultado.points} pts`
+                    : `Prognóstico ${guardado.casa}–${guardado.fora}`
+
+                const cartao = aberto ? (
+                  <div id={`detalhe-${jogo.id}`} className="pl-jogo-cartao"
                     ref={jogoEmDestaque ? cartaoDaLigacao : undefined}
                     tabIndex={jogoEmDestaque ? -1 : undefined}
                     role={jogoEmDestaque ? 'group' : undefined}
@@ -998,6 +1081,15 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                       </div>
                     )}
                   </div>
+                ) : <div id={`detalhe-${jogo.id}`} hidden />
+
+                return (
+                  <Fragment key={jogo.id}>
+                    {novoDia && <h3 className="pl-jogos-dia">{dia}</h3>}
+                    <LinhaJogo jogo={jogo} aberto={aberto} estado={estado} golosCasa={golosCasa} golosFora={golosFora}
+                      alternar={() => setDetalhe({ ligacao: jogoDaLigacao, id: aberto ? null : jogo.id })} />
+                    {cartao}
+                  </Fragment>
                 )
               })}
             </div>

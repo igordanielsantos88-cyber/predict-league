@@ -6,6 +6,8 @@ import ImpactoResultado from './ImpactoResultado'
 import CalendarioLigaPortugal from './CalendarioLigaPortugal'
 import ImportarJogosOficiais from './ImportarJogosOficiais'
 import EmblemaEquipa from './EmblemaEquipa'
+import CorrigirEmblema from './CorrigirEmblema'
+import MarcadoresPorRever from './MarcadoresPorRever'
 
 const estilos = `
   .pl-jornadas {
@@ -209,6 +211,16 @@ const estilos = `
     overflow-wrap: anywhere;
   }
 
+  .pl-emblema-corrigir { cursor: pointer; border-style: dashed; border-color: #e8c76a; color: inherit; }
+  .pl-jornadas-marcador-revisao {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
   .pl-jornadas-resultado {
     padding: 10px 13px;
     background: #0d1523;
@@ -304,10 +316,18 @@ const estilos = `
     }
   }
 `
+function notaMarcadorOficial(houveDesempate) {
+  return houveDesempate
+    ? 'Marcador dos 90 minutos, incluindo descontos. Houve prolongamento ou penáltis.'
+    : 'Marcador final recebido da Football-Data.org. Revê antes de publicar.'
+}
+
 export default function Jornadas({ competicaoId }) {
   const [epoca, setEpoca] = useState(null)
   const [jornadas, setJornadas] = useState([])
   const [jogos, setJogos] = useState([])
+  const [emblema, setEmblema] = useState(null)
+  const [notaEmblema, setNotaEmblema] = useState('')
   const [nome, setNome] = useState('')
   const [selecionada, setSelecionada] = useState(null)
   const [casa, setCasa] = useState('')
@@ -351,7 +371,7 @@ export default function Jornadas({ competicaoId }) {
       supabase
         .from('matches')
         .select(
-          'id, jornada_id, season_id, home_team, away_team, home_crest, away_crest, kickoff, is_bonus, status, home_score, away_score, football_data_match_id'
+          'id, jornada_id, season_id, home_team, away_team, home_crest, away_crest, kickoff, is_bonus, status, home_score, away_score, football_data_match_id, football_data_competition'
         )
         .eq('season_id', id)
         .order('kickoff'),
@@ -398,7 +418,7 @@ export default function Jornadas({ competicaoId }) {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [competicaoId])
 
   async function executar(acao, mensagem) {
     if (ocupado || !epoca) return
@@ -467,6 +487,28 @@ export default function Jornadas({ competicaoId }) {
     })
   }
 
+  async function atualizarEmblemas(nome, jogoId, lado) {
+    await atualizarListas(epoca.id)
+    setEmblema(atual => atual?.jogoId === jogoId && atual.lado === lado ? null : atual)
+    setNotaEmblema(`Correspondência guardada para ${nome}.`)
+  }
+
+  function escolherEmblema(jogo, lado) {
+    if (ocupado) return
+    setNotaEmblema('')
+    setEmblema({ jogoId: jogo.id, lado })
+  }
+
+  function reverMarcadorOficial(jogo, marcador) {
+    setSoPorFechar(false)
+    setResultadoId(jogo.id)
+    setErroResultado('')
+    setGolosCasa(String(marcador.casa))
+    setGolosFora(String(marcador.fora))
+    setNotaResultado(notaMarcadorOficial(marcador.houve_desempate))
+    setResultadoEmRevisao({ jogoId: jogo.id, casa: marcador.casa, fora: marcador.fora, anterior: jogo })
+  }
+
   async function consultarResultado(jogo) {
     if (ocupado || !epoca || resultadoId !== jogo.id) return
     setOcupado(true)
@@ -484,9 +526,7 @@ export default function Jornadas({ competicaoId }) {
       }
       setGolosCasa(String(data.casa))
       setGolosFora(String(data.fora))
-      setNotaResultado(data.houveDesempate
-        ? 'Marcador dos 90 minutos, incluindo descontos. Houve prolongamento ou penáltis.'
-        : 'Marcador final recebido da Football-Data.org. Revê antes de publicar.')
+      setNotaResultado(notaMarcadorOficial(data.houveDesempate))
     } catch (error) {
       setErroResultado(error.message || 'Não foi possível obter o marcador oficial.')
     } finally {
@@ -509,7 +549,7 @@ export default function Jornadas({ competicaoId }) {
     }
 
     setErroResultado('')
-    setResultadoEmRevisao({ jogoId: jogo.id, casa, fora })
+    setResultadoEmRevisao({ jogoId: jogo.id, casa, fora, anterior: jogo })
   }
 
   async function guardarResultado(jogo, resultado) {
@@ -518,17 +558,28 @@ export default function Jornadas({ competicaoId }) {
     await executar(async () => {
       if (new Date(jogo.kickoff) > new Date()) throw new Error('O jogo ainda não começou.')
 
-      const { error } = await supabase
-        .from('matches')
-        .update({
-          home_score: resultado.casa,
-          away_score: resultado.fora,
-          status: 'finished',
-        })
+      const anterior = resultado.anterior
+      let pedido = supabase.from('matches').update({
+        home_score: resultado.casa,
+        away_score: resultado.fora,
+        status: 'finished',
+      })
         .eq('id', jogo.id)
         .eq('season_id', epoca.id)
+        .eq('kickoff', anterior.kickoff)
+        .eq('status', anterior.status)
 
+      for (const campo of ['home_score', 'away_score', 'football_data_match_id']) {
+        pedido = anterior[campo] == null ? pedido.is(campo, null) : pedido.eq(campo, anterior[campo])
+      }
+      const { data, error } = await pedido.select('id').maybeSingle()
       if (error) throw error
+      if (!data) {
+        await atualizarListas(epoca.id)
+        setResultadoEmRevisao(null)
+        setResultadoId(null)
+        throw new Error('O jogo mudou desde a revisão. Volta a verificar o marcador.')
+      }
 
       setResultadoEmRevisao(null)
       setResultadoId(null)
@@ -606,6 +657,9 @@ export default function Jornadas({ competicaoId }) {
       <ImportarJogosOficiais key={`oficiais:${epoca.id}`} epocaId={epoca.id} jornadas={jornadas} jogosDaEpoca={jogos}
         atualizarJogos={() => atualizarListas(epoca.id)} />
 
+      <MarcadoresPorRever key={`marcadores:${epoca.id}`} epocaId={epoca.id} jogos={jogos}
+        jornadas={jornadas} ocupado={ocupado} aoRever={reverMarcadorOficial} />
+
       <section className="pl-jornadas-painel">
         <h3>➕ Criar nova jornada</h3>
 
@@ -649,6 +703,8 @@ export default function Jornadas({ competicaoId }) {
           Ainda não existem jornadas nesta época.
         </p>
       )}
+
+      {notaEmblema && <p role="status">{notaEmblema}</p>}
 
       {jornadas.map(jornada => {
         const jogosJornada = jogos.filter(
@@ -731,7 +787,8 @@ export default function Jornadas({ competicaoId }) {
 
                   <div className="pl-jornadas-equipas">
                     <span className="pl-jornadas-equipa">
-                      <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
+                      <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest}
+                        aoCorrigir={() => escolherEmblema(jogo, 'casa')} />
                       <span>{jogo.home_team}</span>
                     </span>
 
@@ -742,10 +799,17 @@ export default function Jornadas({ competicaoId }) {
                     </span>
 
                     <span className="pl-jornadas-equipa">
-                      <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
+                      <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest}
+                        aoCorrigir={() => escolherEmblema(jogo, 'fora')} />
                       <span>{jogo.away_team}</span>
                     </span>
                   </div>
+
+                  {emblema?.jogoId === jogo.id && (
+                    <CorrigirEmblema key={`${jogo.id}:${emblema.lado}`} jogo={jogo} lado={emblema.lado}
+                      ocupado={ocupado} aoFechar={() => setEmblema(null)}
+                      aoGuardar={nome => atualizarEmblemas(nome, jogo.id, emblema.lado)} />
+                  )}
 
                   <div className="pl-jornadas-acoes">
                     <button
@@ -798,6 +862,7 @@ export default function Jornadas({ competicaoId }) {
                           <p role="status">
                             {jogo.home_team} <strong>{resultadoEmRevisao.casa} – {resultadoEmRevisao.fora}</strong> {jogo.away_team}
                           </p>
+                          {notaResultado && <p>{notaResultado}</p>}
                           <ImpactoResultado jogoId={jogo.id} casa={resultadoEmRevisao.casa} fora={resultadoEmRevisao.fora} />
                           <div className="pl-jornadas-acoes">
                             <button type="button" className="pl-jornadas-botao-secundario"
