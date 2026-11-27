@@ -310,6 +310,8 @@ export default function Jornadas({ competicaoId }) {
   const [resultadoId, setResultadoId] = useState(null)
   const [resultadoEmRevisao, setResultadoEmRevisao] = useState(null)
   const [erroResultado, setErroResultado] = useState('')
+  const [notaResultado, setNotaResultado] = useState('')
+  const [aConsultarResultado, setAConsultarResultado] = useState(false)
   const [golosCasa, setGolosCasa] = useState('')
   const [golosFora, setGolosFora] = useState('')
   const [ocupado, setOcupado] = useState(false)
@@ -343,7 +345,7 @@ export default function Jornadas({ competicaoId }) {
       supabase
         .from('matches')
         .select(
-          'id, jornada_id, season_id, home_team, away_team, kickoff, is_bonus, status, home_score, away_score'
+          'id, jornada_id, season_id, home_team, away_team, kickoff, is_bonus, status, home_score, away_score, football_data_match_id'
         )
         .eq('season_id', id)
         .order('kickoff'),
@@ -457,6 +459,34 @@ export default function Jornadas({ competicaoId }) {
 
       if (error) throw error
     })
+  }
+
+  async function consultarResultado(jogo) {
+    if (ocupado || !epoca || resultadoId !== jogo.id) return
+    setOcupado(true)
+    setAConsultarResultado(true)
+    setErroResultado('')
+    setNotaResultado('')
+    try {
+      const { data, error } = await supabase.functions.invoke('sincronizar-calendario', {
+        body: { epocaId: epoca.id, jogoId: jogo.id, acao: 'resultado' },
+      })
+      if (error || data?.estado !== 'disponivel' ||
+        !Number.isInteger(data.casa) || data.casa < 0 || !Number.isInteger(data.fora) || data.fora < 0) {
+        const resposta = error?.context instanceof Response ? await error.context.json().catch(() => null) : null
+        throw new Error(resposta?.erro || 'Não foi possível obter o marcador oficial.')
+      }
+      setGolosCasa(String(data.casa))
+      setGolosFora(String(data.fora))
+      setNotaResultado(data.houveDesempate
+        ? 'Marcador dos 90 minutos, incluindo descontos. Houve prolongamento ou penáltis.'
+        : 'Marcador final recebido da Football-Data.org. Revê antes de publicar.')
+    } catch (error) {
+      setErroResultado(error.message || 'Não foi possível obter o marcador oficial.')
+    } finally {
+      setAConsultarResultado(false)
+      setOcupado(false)
+    }
   }
 
   function reverResultado(jogo) {
@@ -727,6 +757,7 @@ export default function Jornadas({ competicaoId }) {
                       disabled={ocupado}
                       onClick={() => {
                         setErroResultado('')
+                        setNotaResultado('')
                         setResultadoEmRevisao(null)
                         setResultadoId(
                           resultadoId === jogo.id ? null : jogo.id
@@ -775,6 +806,14 @@ export default function Jornadas({ competicaoId }) {
                         <>
                           <h4>🏁 Resultado do jogo</h4>
 
+                          {jogo.football_data_match_id && Date.parse(jogo.kickoff) <= agora && (
+                            <button type="button" className="pl-jornadas-botao-secundario" disabled={ocupado}
+                              onClick={() => consultarResultado(jogo)}>
+                              {aConsultarResultado ? 'A consultar…' : 'Buscar marcador oficial'}
+                            </button>
+                          )}
+                          {notaResultado && <p role="status">{notaResultado}</p>}
+
                           <div className="pl-jornadas-campos">
                             <div className="pl-jornadas-campo">
                               <label htmlFor={`casa-${jogo.id}`}>
@@ -790,9 +829,11 @@ export default function Jornadas({ competicaoId }) {
                                 min="0"
                                 step="1"
                                 value={golosCasa}
+                                disabled={aConsultarResultado}
                                 onChange={e => {
                                   setGolosCasa(e.target.value)
                                   setErroResultado('')
+                                  setNotaResultado('')
                                 }}
                               />
                             </div>
@@ -810,9 +851,11 @@ export default function Jornadas({ competicaoId }) {
                                 min="0"
                                 step="1"
                                 value={golosFora}
+                                disabled={aConsultarResultado}
                                 onChange={e => {
                                   setGolosFora(e.target.value)
                                   setErroResultado('')
+                                  setNotaResultado('')
                                 }}
                               />
                             </div>

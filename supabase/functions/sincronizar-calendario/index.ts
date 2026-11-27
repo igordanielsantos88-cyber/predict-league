@@ -1,3 +1,4 @@
+import { lerResultadoOficial } from './resultado.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 import { timingSafeEqual } from 'node:crypto';
 import { validarCalendario } from './fixtures.ts';
@@ -46,11 +47,51 @@ Deno.serve(async req => {
   }
 
   let body: { epocaId?: string; previa?: boolean; acao?: string; competicao?: string;
-    ano?: number; jornadaId?: string; ids?: number[]; destinos?: Record<string, string> } | null;
+    ano?: number; jornadaId?: string; jogoId?: string; ids?: number[]; destinos?: Record<string, string> } | null;
   try { body = await req.json(); } catch { return responder(400, { erro: 'Pedido inválido.' }); }
   if (typeof body?.epocaId !== 'string' || !uuid.test(body.epocaId) ||
       (!agendado && body.acao == null && typeof body.previa !== 'boolean')) {
     return responder(400, { erro: 'Época ou operação inválida.' });
+  }
+
+  if (body.acao === 'resultado') {
+    if (agendado || typeof body.jogoId !== 'string' || !uuid.test(body.jogoId)) {
+      return responder(400, { erro: 'Jogo inválido.' });
+    }
+
+    const { data: jogo, error } = await db.from('matches').select('football_data_match_id,kickoff')
+      .eq('id', body.jogoId).eq('season_id', body.epocaId).maybeSingle();
+    if (error) return responder(503, { erro: 'Não foi possível consultar o jogo.' });
+    const id = Number(jogo?.football_data_match_id);
+    if (!jogo || !Number.isSafeInteger(id) || id < 1) {
+      return responder(404, { erro: 'Este jogo ainda não está ligado à Football-Data.org.' });
+    }
+    if (Date.parse(jogo.kickoff) > Date.now()) {
+      return responder(409, { erro: 'O jogo ainda não começou.' });
+    }
+
+    const token = Deno.env.get('FOOTBALL_DATA_TOKEN')?.trim();
+    if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
+
+    try {
+      const resposta = await fetch(`https://api.football-data.org/v4/matches/${id}`, {
+        headers: { 'X-Auth-Token': token }, redirect: 'error', signal: AbortSignal.timeout(9000),
+      });
+      if (resposta.status === 403) return responder(502, { erro: 'O teu plano não dá acesso ao resultado deste jogo.' });
+      if (resposta.status === 429) return responder(502, { erro: 'Limite de pedidos atingido. Tenta daqui a um minuto.' });
+      if (!resposta.ok) return responder(502, { erro: 'O fornecedor não conseguiu devolver o jogo.' });
+
+      const resultado = lerResultadoOficial(await resposta.json(), id);
+      if (resultado.estado === 'por_confirmar') {
+        return responder(409, { erro: 'O fornecedor ainda não confirmou o resultado final.' });
+      }
+      if (resultado.estado !== 'disponivel') {
+        return responder(502, { erro: 'O fornecedor ainda não tem um marcador válido dos 90 minutos.' });
+      }
+      return responder(200, resultado);
+    } catch {
+      return responder(502, { erro: 'Não foi possível consultar o marcador oficial. Tenta novamente.' });
+    }
   }
 
   if (body.acao != null) {
