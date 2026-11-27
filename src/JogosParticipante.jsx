@@ -258,8 +258,10 @@ function JogosParticipante({ jogoDaLigacao }) {
   const [jogos, setJogos] = useState([])
   const [jornadas, setJornadas] = useState([])
   const [palpites, setPalpites] = useState({})
+  const [prognosticosGuardados, setPrognosticosGuardados] = useState(() => new Set())
   const [historico, setHistorico] = useState([])
   const [filtroJogos, setFiltroJogos] = useState('todos')
+  const [agora, setAgora] = useState(Date.now)
   const [aCarregar, setACarregar] = useState(true)
   const [erro, setErro] = useState('')
   const [aGuardar, setAGuardar] = useState(null)
@@ -279,6 +281,7 @@ function JogosParticipante({ jogoDaLigacao }) {
     let ativo = true
 
     async function atualizarPontos() {
+      setAgora(Date.now())
       const { data, error } = await supabase.rpc('obter_meus_pontos')
 
       if (ativo && !error) {
@@ -381,6 +384,7 @@ function JogosParticipante({ jogoDaLigacao }) {
         }
 
         setPalpites(palpitesGuardados)
+        setPrognosticosGuardados(new Set(Object.keys(palpitesGuardados)))
 
         if ((data || []).length > 0) {
           const { data: pontuacoes, error: erroPontuacoes } =
@@ -472,6 +476,7 @@ function JogosParticipante({ jogoDaLigacao }) {
       if (error) {
         alert('Não foi possível guardar: ' + error.message)
       } else {
+        setPrognosticosGuardados(guardados => new Set([...guardados, jogo.id]))
         alert('Prognóstico guardado com sucesso! ⚽')
       }
     } catch {
@@ -533,6 +538,7 @@ async function guardarTodosPalpites(jogosDaJornada) {
     if (error) {
       alert('Erro ao guardar: ' + error.message)
     } else {
+      setPrognosticosGuardados(guardados => new Set([...guardados, ...dados.map(dado => dado.match_id)]))
       alert(`✅ ${dados.length} prognóstico(s) guardado(s)!`)
     }
   } catch {
@@ -578,12 +584,21 @@ async function guardarTodosPalpites(jogosDaJornada) {
     }
   }
 
-  const jogosFiltrados = jogos.filter(jogo => {
-    const comecou =
-      new Date(jogo.kickoff).getTime() <= Date.now()
+  const idsJornadas = new Set(jornadas.map(jornada => jornada.id))
+  const porPrognosticar = new Set(jogos.filter(jogo =>
+    jogo.status === 'scheduled' &&
+    new Date(jogo.kickoff).getTime() > agora &&
+    idsJornadas.has(jogo.jornada_id) &&
+    !prognosticosGuardados.has(jogo.id)
+  ).map(jogo => jogo.id))
 
+  const jogosFiltrados = jogos.filter(jogo => {
     if (filtroJogos === 'por-jogar') {
-      return !comecou
+      return new Date(jogo.kickoff).getTime() > agora
+    }
+
+    if (filtroJogos === 'por-prognosticar') {
+      return porPrognosticar.has(jogo.id)
     }
 
     if (filtroJogos === 'terminados') {
@@ -633,11 +648,13 @@ async function guardarTodosPalpites(jogosDaJornada) {
         {[
           ['todos', '⚽ Todos'],
           ['por-jogar', '📅 Por jogar'],
+          ['por-prognosticar', `🎯 Por prognosticar (${porPrognosticar.size})`],
           ['terminados', '🏁 Terminados'],
         ].map(([valor, nome]) => (
           <button
             key={valor}
             type="button"
+            aria-pressed={filtroJogos === valor}
             className={
               `pl-jogos-filtro ${filtroJogos === valor ? 'ativo' : ''}`
             }
@@ -649,7 +666,9 @@ async function guardarTodosPalpites(jogosDaJornada) {
       </div>
 
       {jogosPorJornada.length === 0 ? (
-        <p>Não existem jogos para o filtro selecionado.</p>
+        <p role="status">{filtroJogos === 'por-prognosticar'
+          ? 'Não tens prognósticos em falta para os jogos com prazo aberto.'
+          : 'Não existem jogos para o filtro selecionado.'}</p>
       ) : (
         jogosPorJornada.map(jornada => (
           <details key={jornada.id} open className="pl-jornada">
@@ -674,7 +693,7 @@ async function guardarTodosPalpites(jogosDaJornada) {
 </div> 
               {jornada.jogos.map(jogo => {
                 const comecou =
-                  new Date(jogo.kickoff).getTime() <= Date.now()
+                  new Date(jogo.kickoff).getTime() <= agora
 
                 const resultado = historico.find(
                   item => item.match_id === jogo.id
