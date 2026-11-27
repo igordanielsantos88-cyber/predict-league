@@ -1,7 +1,7 @@
 import { lerResultadoOficial } from './resultado.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 import { timingSafeEqual } from 'node:crypto';
-import { validarCalendario } from './fixtures.ts';
+import { lerClubesOficiais, validarCalendario } from './fixtures.ts';
 import { codigoEuropeu, competicaoValida } from './competicoes.ts';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -10,6 +10,19 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+function consultarFornecedor(url: URL | string, token: string) {
+  return fetch(url, {
+    headers: { 'X-Auth-Token': token }, redirect: 'error', signal: AbortSignal.timeout(9000),
+  });
+}
+
+async function codigoFornecedor(competicao: string, token: string) {
+  if (competicao !== 'EL' && competicao !== 'UECL') return competicao;
+  const catalogo = await consultarFornecedor('https://api.football-data.org/v4/competitions', token);
+  if (!catalogo.ok) throw new Error(`Não foi possível consultar o plano (HTTP ${catalogo.status}).`);
+  return codigoEuropeu(competicao, await catalogo.json());
+}
 
 Deno.serve(async req => {
   const responder = (status: number, dados: Record<string, unknown>) =>
@@ -47,8 +60,49 @@ Deno.serve(async req => {
   }
 
   let body: { epocaId?: string; previa?: boolean; acao?: string; competicao?: string;
-    ano?: number; jornadaId?: string; jogoId?: string; ids?: number[]; destinos?: Record<string, string> } | null;
+    ano?: number; jornadaId?: string; jogoId?: string; lado?: string; nome?: string; clubeId?: number; ids?: number[]; destinos?: Record<string, string> } | null;
   try { body = await req.json(); } catch { return responder(400, { erro: 'Pedido inválido.' }); }
+  if (body?.acao === 'recolher-marcadores') {
+    if (!agendado && (typeof body.epocaId !== 'string' || !uuid.test(body.epocaId))) {
+      return responder(400, { erro: 'Época inválida.' });
+    }
+    const token = Deno.env.get('FOOTBALL_DATA_TOKEN')?.trim();
+    if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
+
+    const { data: jogos, error } = await db.rpc('reservar_marcadores_calendario', { p_epoca: agendado ? null : body.epocaId });
+    if (error) return responder(503, { erro: 'Não foi possível consultar os jogos por fechar.' });
+
+    // Partilha a consulta quando o mesmo jogo oficial pertence a mais de uma época da app.
+    const marcadores = new Map<number, Promise<ReturnType<typeof lerResultadoOficial>>>();
+    const obtidos = await Promise.allSettled((jogos as { jogo_id: string; fornecedor_id: number; consultado_em: string }[]).map(
+      async ({ jogo_id, fornecedor_id, consultado_em }) => {
+        let marcador = marcadores.get(fornecedor_id);
+        if (!marcador) {
+          const consulta = consultarFornecedor(`https://api.football-data.org/v4/matches/${fornecedor_id}`, token);
+          marcador = consulta.then(async resposta => {
+            if (!resposta.ok) throw new Error(`Football-Data.org HTTP ${resposta.status}`);
+            return lerResultadoOficial(await resposta.json(), fornecedor_id);
+          });
+          marcadores.set(fornecedor_id, marcador);
+        }
+        const resultado = await marcador;
+        if (resultado.estado !== 'disponivel') return false;
+        const { data, error } = await db.rpc('guardar_marcador_calendario', {
+          p_jogo: jogo_id, p_fornecedor: fornecedor_id, p_consultado_em: consultado_em,
+          p_casa: resultado.casa, p_fora: resultado.fora, p_desempate: resultado.houveDesempate,
+        });
+        if (error) throw new Error('Não foi possível guardar o marcador para revisão.');
+        return data === true;
+      },
+    ));
+    const falhas = obtidos.filter(item => item.status === 'rejected');
+    const novos = obtidos.filter(item => item.status === 'fulfilled' && item.value).length;
+    if (falhas.length) {
+      console.warn('Recolha de marcadores:', falhas.map(item => item.reason instanceof Error ? item.reason.message : 'Erro de consulta'));
+    }
+    return responder(200, { novos, falhas: falhas.length });
+  }
+
   if (typeof body?.epocaId !== 'string' || !uuid.test(body.epocaId) ||
       (!agendado && body.acao == null && typeof body.previa !== 'boolean')) {
     return responder(400, { erro: 'Época ou operação inválida.' });
@@ -74,9 +128,7 @@ Deno.serve(async req => {
     if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
 
     try {
-      const resposta = await fetch(`https://api.football-data.org/v4/matches/${id}`, {
-        headers: { 'X-Auth-Token': token }, redirect: 'error', signal: AbortSignal.timeout(9000),
-      });
+      const resposta = await consultarFornecedor(`https://api.football-data.org/v4/matches/${id}`, token);
       if (resposta.status === 403) return responder(502, { erro: 'O teu plano não dá acesso ao resultado deste jogo.' });
       if (resposta.status === 429) return responder(502, { erro: 'Limite de pedidos atingido. Tenta daqui a um minuto.' });
       if (!resposta.ok) return responder(502, { erro: 'O fornecedor não conseguiu devolver o jogo.' });
@@ -91,6 +143,42 @@ Deno.serve(async req => {
       return responder(200, resultado);
     } catch {
       return responder(502, { erro: 'Não foi possível consultar o marcador oficial. Tenta novamente.' });
+    }
+  }
+
+  if (body.acao === 'clubes' || body.acao === 'corrigir-emblema') {
+    const guardar = body.acao === 'corrigir-emblema';
+    if (agendado || !competicaoValida(body.competicao) || !Number.isInteger(body.ano) ||
+        body.ano! < 2000 || body.ano! > 2100 || (guardar && (
+          typeof body.jogoId !== 'string' || !uuid.test(body.jogoId) ||
+          (body.lado !== 'casa' && body.lado !== 'fora') ||
+          typeof body.nome !== 'string' || !body.nome.trim() || body.nome.length > 250 ||
+          !Number.isSafeInteger(body.clubeId) || body.clubeId! < 1
+        ))) return responder(400, { erro: 'Escolhe a competição, a época e o clube oficial.' });
+
+    const token = Deno.env.get('FOOTBALL_DATA_TOKEN')?.trim();
+    if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
+
+    try {
+      const codigo = await codigoFornecedor(body.competicao, token);
+      if (!codigo) return responder(404, { erro: 'A competição não está no catálogo do teu plano.' });
+      const url = new URL(`https://api.football-data.org/v4/competitions/${codigo}/teams`);
+      url.searchParams.set('season', String(body.ano));
+      const resposta = await consultarFornecedor(url, token);
+      if (!resposta.ok) return responder(502, { erro: `Não foi possível carregar os clubes (HTTP ${resposta.status}).` });
+      const clubes = lerClubesOficiais(await resposta.json());
+      if (!guardar) return responder(200, { clubes });
+
+      const clube = clubes.find(item => item.id === body.clubeId);
+      if (!clube) return responder(409, { erro: 'O emblema escolhido deixou de estar disponível.' });
+      const { data, error } = await db.rpc('guardar_alias_emblema_calendario', {
+        p_epoca: body.epocaId, p_jogo: body.jogoId, p_lado: body.lado, p_competicao: body.competicao,
+        p_nome: body.nome, p_oficial: clube.nome, p_emblema: clube.emblema,
+      });
+      return error ? responder(409, { erro: 'Não foi possível guardar a correspondência neste jogo.' })
+        : responder(200, { jogosAtualizados: data });
+    } catch {
+      return responder(502, { erro: 'Não foi possível obter o catálogo de clubes da Football-Data.org.' });
     }
   }
 
@@ -118,20 +206,11 @@ Deno.serve(async req => {
     if (!token) return responder(503, { erro: 'Falta configurar FOOTBALL_DATA_TOKEN na função.' });
 
     try {
-      const consultar = (url: URL) => fetch(url, {
-        headers: { 'X-Auth-Token': token }, redirect: 'error', signal: AbortSignal.timeout(9000),
-      });
-      let codigo = body.competicao;
-      if (codigo === 'EL' || codigo === 'UECL') {
-        const catalogo = await consultar(new URL('https://api.football-data.org/v4/competitions'));
-        if (!catalogo.ok) return responder(502, { erro: `Não foi possível consultar o plano (HTTP ${catalogo.status}).` });
-        const codigoFornecedor = codigoEuropeu(codigo, await catalogo.json());
-        if (!codigoFornecedor) return responder(404, { erro: 'Esta competição não aparece no catálogo devolvido pelo teu plano.' });
-        codigo = codigoFornecedor;
-      }
+      const codigo = await codigoFornecedor(body.competicao, token);
+      if (!codigo) return responder(404, { erro: 'Esta competição não aparece no catálogo devolvido pelo teu plano.' });
       const urlJogos = new URL(`https://api.football-data.org/v4/competitions/${codigo}/matches`);
       urlJogos.searchParams.set('season', String(body.ano));
-      const resposta = await consultar(urlJogos);
+      const resposta = await consultarFornecedor(urlJogos, token);
       if (!resposta.ok) {
         const erro = resposta.status === 403 ? 'O teu plano não dá acesso a estes jogos.'
           : resposta.status === 429 ? 'Limite de pedidos da Football-Data.org atingido. Tenta daqui a um minuto.'

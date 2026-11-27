@@ -1,4 +1,4 @@
-type Equipa = { name?: string; shortName?: string; tla?: string; crest?: string };
+type Equipa = { id?: number; name?: string; shortName?: string; tla?: string; crest?: string };
 type JogoApi = {
   id?: number;
   matchday?: number;
@@ -22,6 +22,22 @@ function nomes(equipa: Equipa): string[] {
 function emblema(valor: unknown) {
   return typeof valor === 'string' && /^https:\/\/crests\.football-data\.org\/[a-z0-9_-]{1,100}\.(svg|png|webp)$/i.test(valor)
     ? valor : null;
+}
+
+export function lerClubesOficiais(dados: unknown) {
+  const equipas = (dados as { teams?: Equipa[] } | null)?.teams;
+  if (!Array.isArray(equipas) || equipas.length > 650) throw new Error('Catálogo de clubes inválido.');
+
+  const clubes = new Map<number, { id: number; nome: string; emblema: string }>();
+  for (const equipa of equipas) {
+    const id = equipa?.id;
+    const nome = typeof equipa?.name === 'string' ? equipa.name.trim() : '';
+    const imagem = emblema(equipa?.crest);
+    if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0 && nome && nome.length <= 120 && imagem) {
+      clubes.set(id, { id, nome, emblema: imagem });
+    }
+  }
+  return [...clubes.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-PT'));
 }
 
 export function validarCalendario(dados: unknown, ano: number, codigo = 'PPL', exigirJornada = true) {
