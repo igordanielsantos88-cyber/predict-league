@@ -79,7 +79,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
     if (pedidoNotificacoes > 0) setPagina('notificacoes')
   }, [pedidoNotificacoes])
   const [competicaoId, setCompeticaoId] = useState(null)
-  const [jogoDoPainel, setJogoDoPainel] = useState(null)
+  const [alvoDoPainel, setAlvoDoPainel] = useState(null)
   const [erroCompeticao, setErroCompeticao] = useState('')
   const [aCarregarCompeticao, setACarregarCompeticao] = useState(true)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximos: [], porFazer: null })
@@ -193,8 +193,8 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
     'diagnostico-push': <DiagnosticoPush />,
     prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={destino?.tipo === 'jogo' ? destino.id : null} />,
     'prognosticos-pendentes': <JogosParticipante competicaoId={competicaoId} filtroInicial="por-prognosticar" />,
-    'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={jogoDoPainel} />,
-    liga: <Liga competicaoId={competicaoId} jornadaInicial={destino?.tipo === 'jornada' ? destino.id : null} />,
+    'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={alvoDoPainel} />,
+    liga: <Liga competicaoId={competicaoId} jornadaInicial={destino?.tipo === 'jornada' ? destino.id : alvoDoPainel} />,
     jornadas: <Jornadas competicaoId={competicaoId} />,
     participantes: <Participantes competicaoId={competicaoId} />,
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
@@ -205,9 +205,9 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
     chat: <Chat />,
      }
   const secaoAtual = secoes.find(s => s.id === (['prognosticos-pendentes', 'proximo-jogo'].includes(pagina) ? 'prognosticos' : pagina))
-  function abrir(secao, jogoId = null) {
+  function abrir(secao, alvoId = null) {
     limparLigacao()
-    setJogoDoPainel(jogoId)
+    setAlvoDoPainel(alvoId)
     setPagina(secao)
     window.scrollTo(0, 0)
   }
@@ -237,7 +237,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
       {pagina === 'inicio' ? (
         <>
           <InicioPainel resumo={resumo} aCarregar={aCarregarCompeticao || (Boolean(competicaoId) && aCarregarResumo)}
-            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizar={() => setAtualizacao(n => n + 1)} />
+            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={() => setAtualizacao(n => n + 1)} />
           <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} />
         </>
       ) : pagina === 'mais' ? (

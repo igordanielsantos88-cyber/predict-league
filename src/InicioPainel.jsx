@@ -1,10 +1,56 @@
+import { useEffect, useState } from 'react'
+import { supabase } from './supabase'
+import { descreverMovimento } from './movimentoClassificacao'
 import EmblemaEquipa from './EmblemaEquipa'
 
 const horaLisboa = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
 })
 
-export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, abrir, atualizar }) {
+function UltimaJornada({ competicaoId, abrir, atualizacao }) {
+  const [estado, setEstado] = useState(null)
+
+  useEffect(() => {
+    let pedido
+    async function carregar() {
+      pedido?.abort()
+      const atual = new AbortController()
+      pedido = atual
+      const { data, error } = await supabase.rpc('obter_ultima_jornada_concluida', {
+        p_competition_id: competicaoId,
+      }).abortSignal(atual.signal)
+      if (!atual.signal.aborted && !error) setEstado(data)
+    }
+    void carregar()
+    const intervalo = setInterval(carregar, 60000)
+    window.addEventListener('focus', carregar)
+    return () => {
+      pedido?.abort()
+      clearInterval(intervalo)
+      window.removeEventListener('focus', carregar)
+    }
+  }, [competicaoId, atualizacao])
+
+  if (!estado?.jornadaId) return null
+  const exatos = estado.jogos.filter(jogo => jogo.acerto === 'exato').length
+  const nome = estado.nome || `Jornada ${estado.numero}`
+
+  return (
+    <section className="pl-agenda" aria-labelledby="pl-ultima-jornada">
+      <div className="pl-section-heading">
+        <h2 className="pl-section-title" id="pl-ultima-jornada">Última jornada concluída</h2>
+        <button type="button" className="pl-refresh" onClick={() => abrir('liga', estado.jornadaId)}>Ver resumo</button>
+      </div>
+      <div className="pl-stat">
+        <span className="pl-stat-label">{nome}</span>
+        <strong>{estado.pontos} {estado.pontos === 1 ? 'ponto' : 'pontos'} · {exatos} {exatos === 1 ? 'exato' : 'exatos'}</strong>
+        <span className="pl-stat-label">{descreverMovimento(estado.posicaoAnterior, estado.posicaoAtual)}</span>
+      </div>
+    </section>
+  )
+}
+
+export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, abrir, atualizar, atualizacao }) {
   const [jogo, ...seguintes] = aCarregar || erro ? [] : resumo.proximos
   const pendentes = resumo.porFazer ?? 0
   return (
@@ -61,6 +107,7 @@ export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, ab
           <strong>{aCarregar ? '…' : erro || !resumo.posicao ? '—' : `${resumo.posicao}.º`}</strong>
         </div>
       </div>
+      {competicaoId && <UltimaJornada key={competicaoId} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} />}
       {seguintes.length > 0 && (
         <section className="pl-agenda" aria-labelledby="pl-agenda-titulo">
           <div className="pl-section-heading">

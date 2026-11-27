@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-async function carregarMarcadores(epocaId) {
-  const { data, error } = await supabase.rpc('obter_marcadores_por_rever', { p_epoca: epocaId })
+const dataLisboa = new Intl.DateTimeFormat('pt-PT', {
+  dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Lisbon',
+})
+
+async function carregarMarcadores(epocaId, signal) {
+  const consulta = supabase.rpc('obter_estado_recolha_marcadores', { p_epoca: epocaId })
+  const { data, error } = await (signal ? consulta.abortSignal(signal) : consulta)
   if (error) throw error
   return data
 }
@@ -14,23 +19,26 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
   const [nota, setNota] = useState('')
 
   useEffect(() => {
-    let ativo = true
+    let pedido
     async function atualizar() {
+      pedido?.abort()
+      const atual = new AbortController()
+      pedido = atual
       try {
-        const lista = await carregarMarcadores(epocaId)
-        if (ativo) {
+        const lista = await carregarMarcadores(epocaId, atual.signal)
+        if (!atual.signal.aborted) {
           setMarcadores(lista)
           setErro('')
         }
       } catch {
-        if (ativo) setErro('Não foi possível carregar os marcadores por rever.')
+        if (!atual.signal.aborted) setErro('Não foi possível carregar os marcadores por rever.')
       }
     }
     atualizar()
     const intervalo = setInterval(atualizar, 60000)
     window.addEventListener('focus', atualizar)
     return () => {
-      ativo = false
+      pedido?.abort()
       clearInterval(intervalo)
       window.removeEventListener('focus', atualizar)
     }
@@ -61,7 +69,7 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
 
   const porId = new Map(jogos.map(jogo => [jogo.id, jogo]))
   const jornadasPorId = new Map(jornadas.map(jornada => [jornada.id, jornada]))
-  const porRever = (marcadores || []).flatMap(marcador => {
+  const porRever = (marcadores?.porRever || []).flatMap(marcador => {
     const jogo = porId.get(marcador.jogo_id)
     const jornada = jornadasPorId.get(jogo?.jornada_id)
     if (!jornada || jogo.football_data_match_id !== marcador.fornecedor_id ||
@@ -81,6 +89,13 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
       {nota && <p role="status">{nota}</p>}
       {!marcadores && !erro && <p role="status">A carregar marcadores…</p>}
       {marcadores && !porRever.length && <p>Não há marcadores por rever.</p>}
+      {marcadores && (
+        <p className="pl-jornadas-contagem">
+          {marcadores.ultimaConsulta ? <>Última consulta registada em <time dateTime={marcadores.ultimaConsulta}>
+            {dataLisboa.format(new Date(marcadores.ultimaConsulta))}
+          </time></> : 'Sem consultas registadas nesta época.'}
+        </p>
+      )}
       {porRever.map(({ jogo, jornada, marcador }) => (
         <div key={jogo.id} className="pl-jornadas-jogo pl-jornadas-marcador-revisao">
           <div>
@@ -92,6 +107,23 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
             onClick={() => aoRever(jogo, marcador)}>Rever marcador</button>
         </div>
       ))}
+      {marcadores && (
+        <details>
+          <summary>Aguardam marcador da Football-Data.org ({marcadores.emEspera.length})</summary>
+          {marcadores.emEspera.length ? (
+            <ul>
+              {marcadores.emEspera.map(jogo => (
+                <li key={jogo.jogoId}>
+                  {jogo.casa} vs {jogo.fora}{' · '}
+                  {jogo.consultadoEm ? <>Consultado em <time dateTime={jogo.consultadoEm}>
+                    {dataLisboa.format(new Date(jogo.consultadoEm))}
+                  </time></> : 'Por consultar'}
+                </li>
+              ))}
+            </ul>
+          ) : <p>Nenhum jogo nesta lista.</p>}
+        </details>
+      )}
     </section>
   )
 }

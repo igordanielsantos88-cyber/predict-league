@@ -73,7 +73,7 @@ function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, naoLidasTot
     if (pedidoNotificacoes > 0) setPagina('notificacoes')
   }, [pedidoNotificacoes])
   const [competicaoId, setCompeticaoId] = useState(null)
-  const [jogoDoPainel, setJogoDoPainel] = useState(null)
+  const [alvoDoPainel, setAlvoDoPainel] = useState(null)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximos: [], porFazer: null })
   const [aCarregarResumo, setACarregarResumo] = useState(true)
   const [erroResumo, setErroResumo] = useState('')
@@ -182,8 +182,8 @@ useEffect(() => {
   const componentes = {
     prognosticos: <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={destino?.tipo === 'jogo' ? destino.id : null} />,
     'prognosticos-pendentes': <JogosParticipante competicaoId={competicaoId} filtroInicial="por-prognosticar" />,
-    'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={jogoDoPainel} />,
-    liga: <Liga competicaoId={competicaoId} jornadaInicial={destino?.tipo === 'jornada' ? destino.id : null} />,
+    'proximo-jogo': <JogosParticipante competicaoId={competicaoId} jogoDaLigacao={alvoDoPainel} />,
+    liga: <Liga competicaoId={competicaoId} jornadaInicial={destino?.tipo === 'jornada' ? destino.id : alvoDoPainel} />,
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
     duelo: <Duelo competicaoId={competicaoId} />,
     conquistas: <Conquistas competicaoId={competicaoId} />,
@@ -192,9 +192,9 @@ useEffect(() => {
     chat: <Chat />,
      }
   const secaoAtual = secoes.find(s => s.id === (['prognosticos-pendentes', 'proximo-jogo'].includes(pagina) ? 'prognosticos' : pagina))
-  function abrir(secao, jogoId = null) {
+  function abrir(secao, alvoId = null) {
     limparLigacao()
-    setJogoDoPainel(jogoId)
+    setAlvoDoPainel(alvoId)
     setPagina(secao)
     window.scrollTo(0, 0)
   }
@@ -221,7 +221,7 @@ useEffect(() => {
       {pagina === 'inicio' ? (
         <>
           <InicioPainel resumo={resumo} aCarregar={Boolean(competicaoId) && aCarregarResumo}
-            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizar={() => setAtualizacao(n => n + 1)} />
+            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={() => setAtualizacao(n => n + 1)} />
           <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} />
         </>
       ) : pagina === 'mais' ? (
