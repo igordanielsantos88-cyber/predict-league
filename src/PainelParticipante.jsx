@@ -71,7 +71,7 @@ const estilos = `
   @media (prefers-reduced-motion:reduce) { .pl-card,.pl-gold-button { transition:none; } .pl-card:hover,.pl-gold-button:hover { transform:none; } }
 `
 
-function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, destino, limparLigacao }) {
+function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, destino, limparLigacao }) {
   const [pagina, setPagina] = useState(() => {
     if (destino?.tipo === 'jogo') return 'prognosticos'
     if (destino?.tipo === 'jornada') return 'liga'
@@ -199,7 +199,7 @@ useEffect(() => {
     estatisticas: <Estatisticas competicaoId={competicaoId} />,
     duelo: <Duelo competicaoId={competicaoId} />,
     conquistas: <Conquistas competicaoId={competicaoId} />,
-    notificacoes: <Notificacoes atualizarSino={atualizarSino} />,
+    notificacoes: <Notificacoes atualizarSino={atualizarSino} naoLidasTotal={naoLidasTotal} />,
     'hall-da-fama': <HallDaFama />,
     chat: <Chat />,
      }

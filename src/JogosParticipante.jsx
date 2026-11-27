@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import { adicionarJogoAoCalendario } from './calendarioJogo'
 import { atualizarRascunho, lerRascunho, removerRascunhoEnviado } from './rascunhosPrognosticos'
 
 const estilos = `
@@ -777,6 +778,11 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                         <span className={tempoRestante <= 3600000 ? 'pl-jogo-prazo pl-jogo-prazo-urgente' : 'pl-jogo-prazo'}>
                           {formatarPrazo(tempoRestante)}
                         </span>
+                      )}
+
+                      {jogo.status === 'scheduled' && tempoRestante > 0 && (
+                        <button type="button" className="pl-jogo-secundario"
+                          onClick={() => adicionarJogoAoCalendario(jogo)}>Adicionar ao calendário</button>
                       )}
 
                       {jogo.is_bonus && (

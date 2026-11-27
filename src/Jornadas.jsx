@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import HistoricoResultado from './HistoricoResultado'
+import ImpactoResultado from './ImpactoResultado'
 
 const estilos = `
   .pl-jornadas {
@@ -752,6 +753,7 @@ export default function Jornadas({ competicaoId }) {
                           <p role="status">
                             {jogo.home_team} <strong>{resultadoEmRevisao.casa} – {resultadoEmRevisao.fora}</strong> {jogo.away_team}
                           </p>
+                          <ImpactoResultado jogoId={jogo.id} casa={resultadoEmRevisao.casa} fora={resultadoEmRevisao.fora} />
                           <div className="pl-jornadas-acoes">
                             <button type="button" className="pl-jornadas-botao-secundario"
                               disabled={ocupado} onClick={() => setResultadoEmRevisao(null)}>

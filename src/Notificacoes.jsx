@@ -49,14 +49,22 @@ function categoria(tipo) {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export default function Notificacoes({ atualizarSino }) {
+export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
   const [estado, setEstado] = useState({ itens: null, erro: '', carregando: true })
   const [filtro, setFiltro] = useState('todas')
   const [aMarcar, setAMarcar] = useState(null)
   const [erroMarcacao, setErroMarcacao] = useState('')
+  const [mensagemMarcacao, setMensagemMarcacao] = useState('')
+  const [lote, setLote] = useState(null)
   const acoes = useRef(null)
   const atualizar = useCallback(() => acoes.current?.carregar(), [])
-  const marcar = useCallback(id => acoes.current?.marcar(id), [])
+  const marcar = (acao, id) => acoes.current?.marcar(acao, id)
+
+  useEffect(() => {
+    if (!lote) return
+    const limite = setTimeout(() => setLote(null), 60000)
+    return () => clearTimeout(limite)
+  }, [lote])
 
   useEffect(() => {
     let ativo = true
@@ -115,8 +123,9 @@ export default function Notificacoes({ atualizarSino }) {
       }
     }
 
-    async function marcarLida(id) {
-      if (!ativo || mutacao || !utilizador || !itens.some(n => n.id === id && !n.lida)) return
+    async function alterarLeitura(acao, id) {
+      if (!ativo || mutacao || !utilizador) return
+      if (acao === 'individual' && !itens.some(n => n.id === id && !n.lida)) return
       mutacao = true
       const operacaoAtual = ++operacao
       const atual = ++pedido
@@ -124,21 +133,44 @@ export default function Notificacoes({ atualizarSino }) {
       controller?.abort()
       controller = new AbortController()
       const signal = controller.signal
-      setAMarcar(id)
+      setAMarcar(acao === 'individual' ? id : acao)
       setErroMarcacao('')
+      setMensagemMarcacao('')
       try {
         const { data, error } = await supabase.auth.getUser()
         if (!ativo || atual !== pedido) return
         if (error || data?.user?.id !== dono) throw new Error('A sessão mudou. Atualiza as notificações antes de continuar.')
-        const resultado = await supabase.rpc('marcar_notificacao_lida', { p_notificacao_id: id }).abortSignal(signal)
+        const [rpc, argumentos] = acao === 'individual' ? ['marcar_notificacao_lida', { p_notificacao_id: id }]
+          : acao === 'todas' ? ['marcar_todas_notificacoes_lidas', {}]
+            : ['desfazer_notificacoes_lidas', { p_lote: id }]
+        const resultado = await supabase.rpc(rpc, argumentos).abortSignal(signal)
         if (!ativo || atual !== pedido) return
-        if (resultado.error || typeof resultado.data !== 'boolean') throw new Error('Não foi possível marcar o aviso como lido. Tenta novamente.')
-        atualizarSino()
-        // false pode significar que outra sessão já marcou o aviso; confirmar no servidor.
-        if (resultado.data) {
-          itens = itens.map(n => n.id === id ? { ...n, lida: true } : n)
-          setEstado({ itens, erro: '', carregando: false })
+        if (resultado.error) throw new Error('Não foi possível atualizar os avisos. Tenta novamente.')
+
+        if (acao === 'todas') {
+          const { total, lote: novoLote } = resultado.data ?? {}
+          if (!Number.isSafeInteger(total) || typeof novoLote !== 'string' || !uuid.test(novoLote)) {
+            throw new Error('Não foi possível confirmar a marcação dos avisos.')
+          }
+          if (total > 0) {
+            setLote(novoLote)
+            setMensagemMarcacao(total === 1 ? 'Um aviso marcado como lido.' : `${total} avisos marcados como lidos.`)
+          } else {
+            setMensagemMarcacao('Não havia avisos por ler.')
+          }
+        } else if (acao === 'desfazer') {
+          const total = Number(resultado.data)
+          if (resultado.data == null || !Number.isSafeInteger(total)) throw new Error('Não foi possível confirmar a alteração.')
+          setLote(null)
+          setMensagemMarcacao(total > 0 ? 'A marcação foi desfeita.' : 'O prazo para desfazer terminou.')
+        } else {
+          if (typeof resultado.data !== 'boolean') throw new Error('Não foi possível marcar o aviso como lido. Tenta novamente.')
+          if (resultado.data) {
+            itens = itens.map(n => n.id === id ? { ...n, lida: true } : n)
+            setEstado({ itens, erro: '', carregando: false })
+          }
         }
+        atualizarSino()
         mutacao = false
         await carregar()
       } catch (error) {
@@ -165,11 +197,13 @@ export default function Notificacoes({ atualizarSino }) {
       mutacao = false
       setAMarcar(null)
       setErroMarcacao('')
+      setMensagemMarcacao('')
+      setLote(null)
       setEstado({ itens: null, erro: '', carregando: true })
       // Não fazer chamadas Supabase dentro do callback de autenticação.
       queueMicrotask(() => { if (ativo) carregar() })
     })
-    acoes.current = { carregar, marcar: marcarLida }
+    acoes.current = { carregar, marcar: alterarLeitura }
     carregar()
     const timer = window.setInterval(refrescarVisivel, 60000)
     window.addEventListener('focus', refrescarVisivel)
@@ -201,6 +235,12 @@ export default function Notificacoes({ atualizarSino }) {
       <button type="button" aria-pressed={filtro === 'todas'} onClick={() => setFiltro('todas')}>Todas</button>
       <button type="button" aria-pressed={filtro === 'nao-lidas'} onClick={() => setFiltro('nao-lidas')}>Por ler</button>
     </div>
+    <div className="pn-acoes">
+      <button type="button" disabled={estado.carregando || !!aMarcar || !(naoLidasTotal ?? naoLidas)}
+        onClick={() => marcar('todas')}>Marcar todos como lidos</button>
+      {lote && <button type="button" disabled={!!aMarcar} onClick={() => marcar('desfazer', lote)}>Desfazer</button>}
+    </div>
+    {mensagemMarcacao && <p role="status">{mensagemMarcacao}</p>}
     {estado.carregando && <p role="status">A carregar notificações…</p>}
     {estado.erro && <p role="alert" className="pn-erro">{estado.erro}</p>}
     {erroMarcacao && <p role="alert" className="pn-erro">{erroMarcacao}</p>}
@@ -214,7 +254,7 @@ export default function Notificacoes({ atualizarSino }) {
       {(!n.lida || n.jogoId) && <div className="pn-acoes">
         {n.jogoId && <a className="pn-ligacao" href={`/?jogo=${n.jogoId}`}>Ver jogo</a>}
         {n.tipo === 'match_result' && n.jornadaId && <a className="pn-ligacao" href={`/?jornada=${n.jornadaId}`}>Ver jornada</a>}
-        {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar(n.id)}>
+        {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar('individual', n.id)}>
           {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
         </button>}
       </div>}

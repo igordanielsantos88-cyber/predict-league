@@ -511,8 +511,8 @@ function App() {
         {erroSaida && <p role="alert" style={{ padding: '12px 28px', color: '#fca5a5' }}>{erroSaida}</p>}
 
         {administrador
-          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} destino={destino} limparLigacao={limparLigacao} />
-          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} destino={destino} limparLigacao={limparLigacao} />}
+          ? <Dashboard pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} naoLidasTotal={naoLidas} destino={destino} limparLigacao={limparLigacao} />
+          : <PainelParticipante pedidoNotificacoes={pedidoNotificacoes} atualizarSino={atualizarSino} naoLidasTotal={naoLidas} destino={destino} limparLigacao={limparLigacao} />}
       </div>
     )
   }
