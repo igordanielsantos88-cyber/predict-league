@@ -76,7 +76,10 @@ export default function ImportarJogosOficiais({ epocaId, jornadas, jogosDaEpoca,
       const { data, error } = await supabase.functions.invoke('sincronizar-calendario', { body })
       if (!error && acao === 'emblemas' && Number.isInteger(data?.emblemasAtualizados)) {
         const total = data.emblemasAtualizados
-        setNota(total === 1 ? 'Emblemas atualizados em 1 jogo.' : `Emblemas atualizados em ${total} jogos.`)
+        if (total > 0) await atualizarJogos()
+        const mensagem = total === 0 ? 'Sem novos emblemas nesta competição.'
+          : total === 1 ? 'Emblemas atualizados em 1 jogo.' : `Emblemas atualizados em ${total} jogos.`
+        setNota(mensagem)
         return
       }
       if (error || !Array.isArray(data?.jogos)) {

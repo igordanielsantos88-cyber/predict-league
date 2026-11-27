@@ -5,6 +5,7 @@ import HistoricoResultado from './HistoricoResultado'
 import ImpactoResultado from './ImpactoResultado'
 import CalendarioLigaPortugal from './CalendarioLigaPortugal'
 import ImportarJogosOficiais from './ImportarJogosOficiais'
+import EmblemaEquipa from './EmblemaEquipa'
 
 const estilos = `
   .pl-jornadas {
@@ -198,6 +199,11 @@ const estilos = `
   }
 
   .pl-jornadas-equipa {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    --pl-emblema-tamanho: 32px;
+    --pl-emblema-letra: 11px;
     font-size: clamp(14px, 3vw, 18px);
     font-weight: bold;
     overflow-wrap: anywhere;
@@ -345,7 +351,7 @@ export default function Jornadas({ competicaoId }) {
       supabase
         .from('matches')
         .select(
-          'id, jornada_id, season_id, home_team, away_team, kickoff, is_bonus, status, home_score, away_score, football_data_match_id'
+          'id, jornada_id, season_id, home_team, away_team, home_crest, away_crest, kickoff, is_bonus, status, home_score, away_score, football_data_match_id'
         )
         .eq('season_id', id)
         .order('kickoff'),
@@ -725,7 +731,8 @@ export default function Jornadas({ competicaoId }) {
 
                   <div className="pl-jornadas-equipas">
                     <span className="pl-jornadas-equipa">
-                      {jogo.home_team}
+                      <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
+                      <span>{jogo.home_team}</span>
                     </span>
 
                     <span className="pl-jornadas-resultado">
@@ -735,7 +742,8 @@ export default function Jornadas({ competicaoId }) {
                     </span>
 
                     <span className="pl-jornadas-equipa">
-                      {jogo.away_team}
+                      <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
+                      <span>{jogo.away_team}</span>
                     </span>
                   </div>
 
