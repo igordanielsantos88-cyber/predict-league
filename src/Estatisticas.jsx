@@ -1,3 +1,4 @@
+import DestaquesEpoca from './DestaquesEpoca'
 import { competicoes } from './competicoesOficiais'
 
 import { useEffect, useState } from 'react'
@@ -467,6 +468,8 @@ export default function Estatisticas({ competicaoId }) {
           <p className="pl-estatisticas-nota">As percentagens usam apenas os teus prognósticos pontuados. Só tendência exclui resultados exatos.
             A taxa de acerto inclui ambos. Jogos terminados sem prognóstico: <strong>{resumo.semPrognostico}</strong> — não são contados como erros.</p>
         </section>
+        <DestaquesEpoca key={`destaques:${competicaoId}:${dados.epoca.id}:${atualizacao}`}
+          competicaoId={competicaoId} epocaId={dados.epoca.id} />
         <DesempenhoPrognosticos key={`${competicaoId}:${dados.epoca.id}:${atualizacao}`}
           competicaoId={competicaoId} epocaId={dados.epoca.id} />
         <section className="pl-estatisticas-analise">
