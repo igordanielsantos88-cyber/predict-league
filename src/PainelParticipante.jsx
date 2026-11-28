@@ -228,7 +228,7 @@ useEffect(() => {
         <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} outras />
       ) : (
         <main className="pl-content">
-          {pagina !== 'liga' && <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
+          {pagina !== 'liga' && pagina !== 'estatisticas' && <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
             {secaoAtual?.icone} {secaoAtual?.nome}
           </h2>}
           {estaDisponivel(pagina)

@@ -1,10 +1,7 @@
-import DestaquesEpoca from './DestaquesEpoca'
+import DestaquesEpoca, { EvolucaoClassificacao } from './DestaquesEpoca'
 import { competicoes } from './competicoesOficiais'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { supabase } from './supabase'
-
-
 
 const estilos = `
   .pl-estatisticas {
@@ -34,26 +31,45 @@ const estilos = `
     margin: 0 0 10px;
   }
 
-  .pl-estatisticas-subtitulo {
-    color: #94a3b8;
-    font-size: 14px;
-    line-height: 1.6;
-    margin-bottom: 26px;
+  .pl-estatisticas-separadores {
+    display: grid;
+    grid-template-columns: .9fr 1.25fr .95fr;
+    gap: 6px;
+    margin-bottom: 16px;
+    max-width: 420px;
   }
 
-  .pl-estatisticas-destaque {
-    background: linear-gradient(120deg, #1b2535, #302718);
-    border: 1px solid #8f722e;
-    border-radius: 18px;
-    padding: 25px;
-    margin-bottom: 28px;
+  .pl-estatisticas .pl-estatisticas-separadores button[role="tab"] {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 3px;
+    border: 1px solid #39475c;
+    border-radius: 10px;
+    background: #1b2535;
+    color: #f8fafc;
+    font: inherit;
+    font-size: clamp(12px, 3.6vw, 15px);
+    cursor: pointer;
   }
 
-  .pl-estatisticas-destaque h3 {
-    color: #e8c76a;
-    margin: 0 0 20px;
-    font-size: 19px;
+  .pl-estatisticas-separadores button[aria-selected="true"] {
+    background: #f0d477;
+    border-color: transparent;
+    color: #261d0c;
+    font-weight: bold;
   }
+
+  .pl-estatisticas-separadores button:focus-visible,
+  .pl-estatisticas [role="tabpanel"]:focus-visible,
+  .pl-estatisticas details summary:focus-visible {
+    outline: 2px solid #f0d477;
+    outline-offset: 3px;
+  }
+
+  .pl-estatisticas [role="tabpanel"] { min-width: 0; }
+  .pl-estatisticas [role="tabpanel"] > .pl-estatisticas-destaque-grid { margin-bottom: 14px; }
+  .pl-estatisticas details summary { color: #e8c76a; cursor: pointer; font-weight: bold; }
+  .pl-estatisticas details[open] summary { margin-bottom: 18px; }
 
   .pl-estatisticas-destaque-grid {
     display: grid;
@@ -81,49 +97,9 @@ const estilos = `
     font-size: 12px;
   }
 
-  .pl-estatisticas-seccao-titulo {
-    font-size: 20px;
-    color: #f8fafc;
-    margin: 0 0 18px;
-  }
-
-  .pl-estatisticas-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-    gap: 15px;
-    margin-bottom: 28px;
-  }
-
-  .pl-estatisticas-cartao {
-    background: linear-gradient(145deg, #1b2535, #131c2b);
-    border: 1px solid #594821;
-    border-radius: 16px;
-    padding: 23px 16px;
-    text-align: center;
-    transition: transform .2s, border-color .2s;
-  }
-
-  .pl-estatisticas-cartao:hover {
-    transform: translateY(-3px);
-    border-color: #d4af37;
-  }
-
-  .pl-estatisticas-icone {
-    font-size: 27px;
-    margin-bottom: 13px;
-  }
-
-  .pl-estatisticas-cartao-titulo {
-    color: #94a3b8;
-    font-size: 13px;
-    margin-bottom: 13px;
-  }
-
-  .pl-estatisticas-cartao-valor {
-    color: #f0d477;
-    font-size: clamp(25px, 4vw, 32px);
-    font-weight: bold;
-  }
+  .pl-estatisticas-totais { display: grid; margin: 0 0 20px; }
+  .pl-estatisticas-totais div { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; }
+  .pl-estatisticas-totais dd { margin: 0; color: #f0d477; }
 
   .pl-estatisticas-analise {
     background: #111827;
@@ -206,32 +182,28 @@ const estilos = `
     color: #fca5a5;
   }
 
+  .pl-destaques-lista { padding: 0; list-style: none; margin: 12px 0; }
+  .pl-destaques-lista li { padding: 10px 0; border-bottom: 1px solid #39475c; overflow-wrap: anywhere; }
+  .pl-destaques-lista li strong { color: #f0d477; }
+  .pl-destaques-grafico { overflow-x: auto; margin: 12px 0; padding-bottom: 8px; }
+  .pl-destaques-curva { position: relative; height: 190px; }
+  .pl-destaques-curva svg { position: absolute; inset: 0; }
+  .pl-destaques-ponto {
+    position: absolute; transform: translate(-50%, -50%); cursor: pointer; color: #f8fafc;
+    background: #26334a; border: 1px solid #f0d477; border-radius: 12px; min-width: 44px; min-height: 44px;
+  }
+  .pl-destaques-ponto[aria-pressed="true"] { color: #221a0d; background: #f0d477; font-weight: bold; }
+  .pl-destaques-ponto:focus-visible { outline: 2px solid #f8fafc; outline-offset: 3px; }
+  .pl-destaques-jornada { position: absolute; top: 159px; transform: translateX(-50%); color: #a7b5c9; font-size: 12px; }
+  .pl-destaques-valor { margin-bottom: 4px; }
+
   @media (max-width: 600px) {
-    .pl-estatisticas-destaque,
-    .pl-estatisticas-analise {
-      padding: 17px;
-    }
-
-    .pl-estatisticas-destaque-grid {
-      gap: 8px;
-    }
-
-    .pl-estatisticas-destaque-item {
-      padding: 16px 6px;
-    }
-
-    .pl-estatisticas-destaque-item span {
-      font-size: 11px;
-    }
-
-    .pl-estatisticas-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .pl-estatisticas-cartao {
-      padding: 19px 10px;
-    }
+    .pl-estatisticas-analise { padding: 14px; margin-bottom: 14px; }
+    .pl-estatisticas-analise h3 { margin-bottom: 12px; }
+    .pl-estatisticas-destaque-grid { gap: 6px; }
+    .pl-estatisticas-destaque-item { padding: 9px 4px; }
+    .pl-estatisticas-destaque-item strong { margin-bottom: 4px; font-size: clamp(20px, 5.6vw, 28px); }
+    .pl-estatisticas-destaque-item span { font-size: 11px; }
   }
 `
 
@@ -357,7 +329,134 @@ function DesempenhoPrognosticos({ competicaoId, epocaId }) {
   )
 }
 
+const separadores = [
+  ['resumo', 'Resumo'],
+  ['desempenho', 'Desempenho'],
+  ['destaques', 'Destaques'],
+]
+
+function SecaoDestaques({ estado, tentar, children }) {
+  if (!estado) return <p role="status">A carregar dados da época…</p>
+  if (estado.erro) return (
+    <div className="pl-estatisticas-controlos">
+      <p role="alert">Não foi possível carregar os dados da época.</p>
+      <button type="button" onClick={tentar}>Tentar novamente</button>
+    </div>
+  )
+  return children(estado.dados)
+}
+
+function PaineisEstatisticas({ competicaoId, dados, aba, id, desempenhoVisitado }) {
+  const epocaId = dados.epoca.id
+  const [estado, setEstado] = useState(null)
+  const [tentativa, setTentativa] = useState(0)
+
+  useEffect(() => {
+    const pedido = new AbortController()
+    async function carregar() {
+      const { data, error } = await supabase.rpc('obter_destaques_epoca', {
+        p_competition_id: competicaoId, p_season_id: epocaId,
+      }).abortSignal(pedido.signal)
+      if (!pedido.signal.aborted) {
+        const valido = !error && Array.isArray(data?.contraCorrente?.jogos) &&
+          Array.isArray(data?.evolucao) && Array.isArray(data?.recordes)
+        setEstado(valido ? { dados: data } : { erro: true })
+      }
+    }
+    void carregar()
+    return () => pedido.abort()
+  }, [competicaoId, epocaId, tentativa])
+
+  function tentar() {
+    setEstado(null)
+    setTentativa(valor => valor + 1)
+  }
+
+  const resumo = dados.resumo
+  const melhores = obterMelhoresJornadas(dados.jornadas)
+  const maximoJornada = Math.max(1, ...dados.jornadas.map(j => j.pontos))
+  const nomeJornada = j => j.nome || (j.numero == null ? 'Sem número' : `Jornada ${j.numero}`)
+
+  return (
+    <>
+      <section id={`${id}-painel-resumo`} aria-labelledby={`${id}-aba-resumo`}
+        role="tabpanel" tabIndex={0} hidden={aba !== 'resumo'}>
+        <div className="pl-estatisticas-destaque-grid">
+          <div className="pl-estatisticas-destaque-item"><strong>{resumo.pontos}</strong><span>Pontos</span></div>
+          <div className="pl-estatisticas-destaque-item"><strong>{resumo.jogosPontuados > 0 && dados.posicao != null ? `${dados.posicao}.º` : '—'}</strong><span>Posição</span></div>
+          <div className="pl-estatisticas-destaque-item"><strong>{percentagem(resumo.exatos + resumo.soTendencia, resumo.jogosPontuados)}</strong><span>Taxa de acerto</span></div>
+        </div>
+        <SecaoDestaques estado={estado} tentar={tentar}>
+          {destaques => <EvolucaoClassificacao jornadas={destaques.evolucao} visivel={aba === 'resumo'} />}
+        </SecaoDestaques>
+        {resumo.totalJogos === 0 && <p className="pl-estatisticas-vazio">Esta época ainda não tem jogos registados.</p>}
+        {resumo.totalJogos > 0 && resumo.jogosPontuados === 0 && <p className="pl-estatisticas-vazio">Ainda não tens prognósticos pontuados nesta época.</p>}
+      </section>
+
+      <section id={`${id}-painel-desempenho`} aria-labelledby={`${id}-aba-desempenho`}
+        role="tabpanel" tabIndex={0} hidden={aba !== 'desempenho'}>
+        {desempenhoVisitado && <DesempenhoPrognosticos competicaoId={competicaoId} epocaId={epocaId} />}
+        <details className="pl-estatisticas-analise">
+          <summary>Pontos por jornada</summary>
+          {!dados.jornadas.length && <p>Não existem jornadas registadas nesta época.</p>}
+          {dados.jornadas.map(j => <div className="pl-estatisticas-jornada" key={j.id}>
+            <div className="pl-estatisticas-barra-topo"><span>{nomeJornada(j)} · {j.concluida ? 'Concluída' : 'Por concluir'}</span>
+              <strong>{j.pontos} pontos</strong></div>
+            <div className="pl-estatisticas-barra-fundo" aria-hidden="true"><div
+              className={`pl-estatisticas-barra-progresso${j.concluida ? '' : ' pl-estatisticas-parcial'}`}
+              style={{ width: `${100 * j.pontos / maximoJornada}%` }} /></div>
+            <small>{j.pontuados} prognósticos pontuados · {j.jogos} jogos na jornada</small>
+          </div>)}
+          <p className="pl-estatisticas-nota">As jornadas por concluir apresentam pontos parciais. Atualiza para consultar novos resultados.</p>
+          <h3>Melhor jornada</h3>
+          {melhores.length ? <p>{melhores.map(nomeJornada).join(' · ')} — <strong>{melhores[0].pontos} pontos</strong></p> :
+            <p>Ainda não existem jornadas concluídas com prognósticos teus pontuados.</p>}
+          <p className="pl-estatisticas-nota">Comparação por pontos, apenas entre jornadas concluídas. Em caso de empate, aparecem todas.</p>
+        </details>
+        <details className="pl-estatisticas-analise">
+          <summary>Jogos bónus</summary>
+          {resumo.bonusPontuados === 0 ? <p>Ainda não tens prognósticos pontuados em jogos bónus nesta época.</p> : <>
+            <div className="pl-estatisticas-destaque-grid">
+              <div className="pl-estatisticas-destaque-item"><strong>{resumo.bonusPontos}</strong><span>Pontos em jogos bónus</span></div>
+              <div className="pl-estatisticas-destaque-item"><strong>{resumo.bonusPontuados}</strong><span>Prognósticos pontuados</span></div>
+              <div className="pl-estatisticas-destaque-item"><strong>{percentagem(resumo.bonusExatos + resumo.bonusSoTendencia, resumo.bonusPontuados)}</strong><span>Taxa de acerto</span></div>
+            </div>
+            <p className="pl-estatisticas-nota">Exatos: {resumo.bonusExatos} · Só tendência: {resumo.bonusSoTendencia} · Errados: {resumo.bonusErrados}.
+              Os pontos apresentados já incluem o multiplicador dos jogos bónus.</p>
+          </>}
+        </details>
+        <details className="pl-estatisticas-analise">
+          <summary>Distribuição dos prognósticos</summary>
+          <dl className="pl-estatisticas-totais">
+            <div><dt>Jogos pontuados</dt><dd>{resumo.jogosPontuados}</dd></div>
+            <div><dt>Precisão do resultado exato</dt><dd>{percentagem(resumo.exatos, resumo.jogosPontuados)}</dd></div>
+            <div><dt>Pontos para o líder</dt><dd>{dados.pontosLider == null ? '—' : Math.max(0, dados.pontosLider - resumo.pontos)}</dd></div>
+          </dl>
+          {[
+            ['Resultado exato', resumo.exatos], ['Só tendência', resumo.soTendencia], ['Errado', resumo.errados],
+          ].map(([nome, total]) => <div className="pl-estatisticas-barra-linha" key={nome}>
+            <div className="pl-estatisticas-barra-topo"><span>{nome}</span><strong>{total} · {percentagem(total, resumo.jogosPontuados)}</strong></div>
+            <div className="pl-estatisticas-barra-fundo" aria-hidden="true"><div className="pl-estatisticas-barra-progresso"
+              style={{ width: `${resumo.jogosPontuados > 0 ? 100 * total / resumo.jogosPontuados : 0}%` }} /></div>
+          </div>)}
+          <p className="pl-estatisticas-nota">A taxa de acerto inclui resultados exatos e tendências certas. Jogos terminados sem prognóstico: <strong>{resumo.semPrognostico}</strong>.</p>
+        </details>
+      </section>
+
+      <section id={`${id}-painel-destaques`} aria-labelledby={`${id}-aba-destaques`}
+        role="tabpanel" tabIndex={0} hidden={aba !== 'destaques'}>
+        <SecaoDestaques estado={estado} tentar={tentar}>
+          {destaques => <DestaquesEpoca dados={destaques} />}
+        </SecaoDestaques>
+      </section>
+    </>
+  )
+}
+
 export default function Estatisticas({ competicaoId }) {
+  const id = useId()
+  const [aba, setAba] = useState('resumo')
+  const [desempenhoVisitado, setDesempenhoVisitado] = useState(false)
   const [selecao, setSelecao] = useState(null)
   const [atualizacao, setAtualizacao] = useState(0)
   const [estado, setEstado] = useState(null)
@@ -401,29 +500,32 @@ export default function Estatisticas({ competicaoId }) {
   const dados = !aCarregar && !erro ? estado?.dados : null
   // Mantém o seletor utilizável durante um carregamento, sem mostrar totais antigos.
   const epocas = estado?.competicaoId === competicaoId ? estado.dados?.epocas || [] : []
-  const resumo = dados?.resumo
-  const melhores = obterMelhoresJornadas(dados?.jornadas || [])
-  const maximoJornada = Math.max(1, ...(dados?.jornadas || []).map(j => j.pontos))
-  const nomeJornada = j => j.nome || (j.numero == null ? 'Sem número' : `Jornada ${j.numero}`)
-  const cartoes = resumo ? [
-    ['🎯', 'Resultados exatos', resumo.exatos],
-    ['⚽', 'Jogos pontuados', resumo.jogosPontuados],
-    ['📊', 'Precisão', percentagem(resumo.exatos, resumo.jogosPontuados)],
-    ['👑', 'Pontos para o líder', dados.pontosLider == null ? '—' : Math.max(0, dados.pontosLider - resumo.pontos)],
-    ['🎯', 'Taxa de acerto', percentagem(resumo.exatos + resumo.soTendencia, resumo.jogosPontuados)],
-  ] : []
+  function selecionarAba(novaAba) {
+    setAba(novaAba)
+    if (novaAba === 'desempenho') setDesempenhoVisitado(true)
+  }
+
+  function navegarPorTeclado(evento, indice) {
+    const total = separadores.length
+    const destinos = { ArrowLeft: (indice + total - 1) % total, ArrowRight: (indice + 1) % total, Home: 0, End: total - 1 }
+    const destino = destinos[evento.key]
+    if (destino == null) return
+    evento.preventDefault()
+    const [novaAba] = separadores[destino]
+    selecionarAba(novaAba)
+    document.getElementById(`${id}-aba-${novaAba}`)?.focus()
+  }
 
   return (
     <div className="pl-estatisticas pl-secao">
       <style>{estilos}</style>
-      <h2 className="pl-estatisticas-titulo">📊 As minhas estatísticas</h2>
-      <p className="pl-estatisticas-subtitulo">Acompanha os teus pontos e acertos, jornada a jornada.</p>
+      <h2 className="pl-estatisticas-titulo">Estatísticas</h2>
       <div className="pl-estatisticas-controlos">
         {epocas.length > 0 && <>
           <label htmlFor="pl-estatisticas-epoca">Época</label>
           <select id="pl-estatisticas-epoca" value={epocaId || ''}
             onChange={e => setSelecao({ competicaoId, id: e.target.value || null })}>
-            <option value="">Época ativa</option>
+            <option value="">{(!epocaId && dados?.epoca.nome) || 'Época ativa'}</option>
             {epocas.map(epoca => <option key={epoca.id} value={epoca.id}>
               {epoca.nome}{epoca.teste ? ' — Teste' : ''}
             </option>)}
@@ -438,69 +540,18 @@ export default function Estatisticas({ competicaoId }) {
           <strong>Época de teste: {dados.epoca.nome}</strong><br />
           Estes dados servem para validar a aplicação e não contam para o ranking histórico oficial.
         </div>}
-        <section className="pl-estatisticas-destaque">
-          <h3>🏆 Resumo — {dados.epoca.nome}</h3>
-          <div className="pl-estatisticas-destaque-grid">
-            <div className="pl-estatisticas-destaque-item"><strong>{resumo.jogosPontuados > 0 && dados.posicao != null ? `${dados.posicao}.º` : '—'}</strong><span>Posição na época</span></div>
-            <div className="pl-estatisticas-destaque-item"><strong>{resumo.pontos}</strong><span>Pontos totais</span></div>
-            <div className="pl-estatisticas-destaque-item"><strong>{dados.pontosLider == null ? '—' : Math.max(0, dados.pontosLider - resumo.pontos)}</strong><span>Pontos para o líder</span></div>
-          </div>
-        </section>
-        {resumo.totalJogos === 0 && <p className="pl-estatisticas-vazio">Esta época ainda não tem jogos registados. Não existem dados detalhados para analisar.</p>}
-        {resumo.totalJogos > 0 && resumo.jogosPontuados === 0 && <p className="pl-estatisticas-vazio">Ainda não tens prognósticos pontuados nesta época.</p>}
-        <h3 className="pl-estatisticas-seccao-titulo">⚽ Desempenho individual</h3>
-        <div className="pl-estatisticas-grid">
-          {cartoes.map(([icone, titulo, valor]) => <div className="pl-estatisticas-cartao" key={titulo}>
-            <div className="pl-estatisticas-icone" aria-hidden="true">{icone}</div>
-            <div className="pl-estatisticas-cartao-titulo">{titulo}</div>
-            <div className="pl-estatisticas-cartao-valor">{valor}</div>
-          </div>)}
+        <div className="pl-estatisticas-separadores" role="tablist" aria-label="Estatísticas">
+          {separadores.map(([valor, nome], indice) => (
+            <button id={`${id}-aba-${valor}`} key={valor} type="button" role="tab"
+              aria-selected={aba === valor} aria-controls={`${id}-painel-${valor}`}
+              tabIndex={aba === valor ? 0 : -1}
+              onClick={() => selecionarAba(valor)} onKeyDown={evento => navegarPorTeclado(evento, indice)}>
+              {nome}
+            </button>
+          ))}
         </div>
-        <section className="pl-estatisticas-analise">
-          <h3>🎯 Distribuição dos prognósticos</h3>
-          {[
-            ['Resultado exato', resumo.exatos], ['Só tendência', resumo.soTendencia], ['Errado', resumo.errados],
-          ].map(([nome, total]) => <div className="pl-estatisticas-barra-linha" key={nome}>
-            <div className="pl-estatisticas-barra-topo"><span>{nome}</span><strong>{total} · {percentagem(total, resumo.jogosPontuados)}</strong></div>
-            <div className="pl-estatisticas-barra-fundo" aria-hidden="true"><div className="pl-estatisticas-barra-progresso"
-              style={{ width: `${resumo.jogosPontuados > 0 ? 100 * total / resumo.jogosPontuados : 0}%` }} /></div>
-          </div>)}
-          <p className="pl-estatisticas-nota">As percentagens usam apenas os teus prognósticos pontuados. Só tendência exclui resultados exatos.
-            A taxa de acerto inclui ambos. Jogos terminados sem prognóstico: <strong>{resumo.semPrognostico}</strong> — não são contados como erros.</p>
-        </section>
-        <DestaquesEpoca key={`destaques:${competicaoId}:${dados.epoca.id}:${atualizacao}`}
-          competicaoId={competicaoId} epocaId={dados.epoca.id} />
-        <DesempenhoPrognosticos key={`${competicaoId}:${dados.epoca.id}:${atualizacao}`}
-          competicaoId={competicaoId} epocaId={dados.epoca.id} />
-        <section className="pl-estatisticas-analise">
-          <h3>📈 Pontos por jornada</h3>
-          {!dados.jornadas.length && <p>Não existem jornadas registadas nesta época.</p>}
-          {dados.jornadas.map(j => <div className="pl-estatisticas-jornada" key={j.id}>
-            <div className="pl-estatisticas-barra-topo"><span>{nomeJornada(j)} · {j.concluida ? 'Concluída' : 'Por concluir'}</span>
-              <strong>{j.pontos} pontos</strong></div>
-            <div className="pl-estatisticas-barra-fundo" aria-hidden="true"><div
-              className={`pl-estatisticas-barra-progresso${j.concluida ? '' : ' pl-estatisticas-parcial'}`}
-              style={{ width: `${100 * j.pontos / maximoJornada}%` }} /></div>
-            <small>{j.pontuados} prognósticos pontuados · {j.jogos} jogos na jornada</small>
-          </div>)}
-          <p className="pl-estatisticas-nota">As jornadas por concluir apresentam pontos parciais. Atualiza para consultar novos resultados.</p>
-          <h3>🏅 Melhor jornada</h3>
-          {melhores.length ? <p>{melhores.map(nomeJornada).join(' · ')} — <strong>{melhores[0].pontos} pontos</strong></p> :
-            <p>Ainda não existem jornadas concluídas com prognósticos teus pontuados.</p>}
-          <p className="pl-estatisticas-nota">Comparação por pontos, apenas entre jornadas concluídas. Em caso de empate, aparecem todas.</p>
-        </section>
-        <section className="pl-estatisticas-analise">
-          <h3>⭐ Jogos bónus</h3>
-          {resumo.bonusPontuados === 0 ? <p>Ainda não tens prognósticos pontuados em jogos bónus nesta época.</p> : <>
-            <div className="pl-estatisticas-destaque-grid">
-              <div className="pl-estatisticas-destaque-item"><strong>{resumo.bonusPontos}</strong><span>Pontos em jogos bónus</span></div>
-              <div className="pl-estatisticas-destaque-item"><strong>{resumo.bonusPontuados}</strong><span>Prognósticos pontuados</span></div>
-              <div className="pl-estatisticas-destaque-item"><strong>{percentagem(resumo.bonusExatos + resumo.bonusSoTendencia, resumo.bonusPontuados)}</strong><span>Taxa de acerto</span></div>
-            </div>
-            <p className="pl-estatisticas-nota">Exatos: {resumo.bonusExatos} · Só tendência: {resumo.bonusSoTendencia} · Errados: {resumo.bonusErrados}.
-              Os pontos apresentados já incluem o multiplicador dos jogos bónus.</p>
-          </>}
-        </section>
+        <PaineisEstatisticas key={chave} id={id} aba={aba} dados={dados}
+          competicaoId={competicaoId} desempenhoVisitado={desempenhoVisitado} />
       </>}
     </div>
   )

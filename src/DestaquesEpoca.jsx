@@ -1,23 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from './supabase'
 import { descreverMovimento } from './movimentoClassificacao'
-
-const estilos = `
-  .pl-destaques-lista { padding: 0; list-style: none; margin: 12px 0; }
-  .pl-destaques-lista li { padding: 10px 0; border-bottom: 1px solid #39475c; overflow-wrap: anywhere; }
-  .pl-destaques-lista li strong { color: #f0d477; }
-  .pl-destaques-grafico { overflow-x: auto; margin: 12px 0; padding-bottom: 8px; }
-  .pl-destaques-curva { position: relative; height: 190px; }
-  .pl-destaques-curva svg { position: absolute; inset: 0; }
-  .pl-destaques-ponto {
-    position: absolute; transform: translate(-50%, -50%); cursor: pointer; color: #f8fafc;
-    background: #26334a; border: 1px solid #f0d477; border-radius: 12px; min-width: 44px; min-height: 44px;
-  }
-  .pl-destaques-ponto[aria-pressed="true"] { color: #221a0d; background: #f0d477; font-weight: bold; }
-  .pl-destaques-ponto:focus-visible { outline: 2px solid #f8fafc; outline-offset: 3px; }
-  .pl-destaques-jornada { position: absolute; top: 159px; transform: translateX(-50%); color: #a7b5c9; font-size: 12px; }
-  .pl-destaques-valor { margin-bottom: 4px; }
-`
 
 const taxa = new Intl.NumberFormat('pt-PT', { style: 'percent', maximumFractionDigits: 1 })
 const pontos = valor => `${valor} ${valor === 1 ? 'ponto' : 'pontos'}`
@@ -53,15 +35,19 @@ function ContraCorrente({ dados }) {
   )
 }
 
-function EvolucaoClassificacao({ jornadas }) {
+export function EvolucaoClassificacao({ jornadas, visivel }) {
   const [jornadaId, setJornadaId] = useState(null)
   const grafico = useRef(null)
+  const mostrouGrafico = useRef(false)
   const selecionada = jornadas.find(item => item.id === jornadaId) || jornadas.at(-1)
 
   useEffect(() => {
     const elemento = grafico.current
-    if (elemento) elemento.scrollLeft = elemento.scrollWidth
-  }, [])
+    if (visivel && elemento && !mostrouGrafico.current) {
+      elemento.scrollLeft = elemento.scrollWidth
+      mostrouGrafico.current = true
+    }
+  }, [visivel])
 
   const piorPosicao = Math.max(1, ...jornadas.map(item => item.posicao))
   const largura = Math.max(240, jornadas.length * 56)
@@ -143,42 +129,11 @@ function RecordesEpoca({ recordes }) {
   )
 }
 
-export default function DestaquesEpoca({ competicaoId, epocaId }) {
-  const [estado, setEstado] = useState(null)
-  const [tentativa, setTentativa] = useState(0)
-
-  useEffect(() => {
-    const pedido = new AbortController()
-    async function carregar() {
-      const { data, error } = await supabase.rpc('obter_destaques_epoca', {
-        p_competition_id: competicaoId, p_season_id: epocaId,
-      }).abortSignal(pedido.signal)
-      if (!pedido.signal.aborted) {
-        const valido = !error && Array.isArray(data?.contraCorrente?.jogos) &&
-          Array.isArray(data?.evolucao) && Array.isArray(data?.recordes)
-        setEstado(valido ? { dados: data } : { erro: true })
-      }
-    }
-    void carregar()
-    return () => pedido.abort()
-  }, [competicaoId, epocaId, tentativa])
-
-  if (!estado) return <p role="status">A carregar os destaques da época…</p>
-  if (estado.erro) return (
-    <div className="pl-estatisticas-controlos">
-      <p role="alert">Não foi possível carregar os destaques da época.</p>
-      <button type="button" onClick={() => {
-        setEstado(null)
-        setTentativa(valor => valor + 1)
-      }}>Tentar novamente</button>
-    </div>
-  )
+export default function DestaquesEpoca({ dados }) {
   return (
     <>
-      <style>{estilos}</style>
-      <ContraCorrente dados={estado.dados.contraCorrente} />
-      <EvolucaoClassificacao jornadas={estado.dados.evolucao} />
-      <RecordesEpoca recordes={estado.dados.recordes} />
+      <ContraCorrente dados={dados.contraCorrente} />
+      <RecordesEpoca recordes={dados.recordes} />
     </>
   )
 }
