@@ -1,4 +1,5 @@
 import EmblemaEquipa from './EmblemaEquipa'
+import PalpiteDaLiga from './PalpiteDaLiga'
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
@@ -325,6 +326,26 @@ const estilos = `
     border: 1px solid #594821;
     border-radius: 12px;
   }
+
+  .pl-palpite-liga { margin-bottom: 12px; }
+  .pl-palpite-liga h4 { margin: 0 0 8px; color: #f0d477; }
+  .pl-palpite-liga p { margin: 8px 0; }
+  .pl-palpite-liga-linha {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 8px;
+    margin: 10px 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .pl-palpite-liga-barra {
+    grid-column: 1 / -1;
+    height: 6px;
+    border-radius: 4px;
+    background: #344156;
+    overflow: hidden;
+  }
+  .pl-palpite-liga-barra span { display: block; height: 100%; background: #d4af37; }
 
   .pl-jogo-outro {
     display: flex;
@@ -1040,6 +1061,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                           🔒 Prognósticos encerrados — o jogo já começou.
                         </p>
 
+                        <PalpiteDaLiga key={jogo.id} jogo={jogo} />
                         <button
                           type="button"
                           className="pl-jogo-secundario"

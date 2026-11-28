@@ -1,3 +1,4 @@
+import { competicoes } from './competicoesOficiais'
 
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
@@ -131,6 +132,11 @@ const estilos = `
     margin-bottom: 25px;
   }
 
+  .pl-estatisticas-desempenho { padding: 0; list-style: none; margin: 0 0 12px; }
+  .pl-estatisticas-desempenho li {
+    display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid #39475c;
+  }
+
   .pl-estatisticas-analise h3 {
     color: #e8c76a;
     font-size: 19px;
@@ -261,6 +267,95 @@ function validarDados(data, competicaoId, userId, epocaId) {
   return data
 }
 
+const nomesCompeticoes = Object.fromEntries(competicoes)
+
+function DesempenhoPrognosticos({ competicaoId, epocaId }) {
+  const [estado, setEstado] = useState(null)
+  const [grupo, setGrupo] = useState('equipas')
+  const [ordem, setOrdem] = useState('pontos')
+  const [mostrarTodas, setMostrarTodas] = useState(false)
+  const [tentativa, setTentativa] = useState(0)
+  const dados = estado?.dados
+
+  useEffect(() => {
+    const pedido = new AbortController()
+    async function carregar() {
+      const { data, error } = await supabase.rpc('obter_desempenho_prognosticos', {
+        p_competition_id: competicaoId, p_season_id: epocaId,
+      }).abortSignal(pedido.signal)
+      if (!pedido.signal.aborted) {
+        const valido = !error && Array.isArray(data?.equipas) && Array.isArray(data?.competicoes)
+        setEstado(valido ? { dados: data } : { erro: true })
+      }
+    }
+    void carregar()
+    return () => pedido.abort()
+  }, [competicaoId, epocaId, tentativa])
+
+  const linhas = [...(dados?.[grupo] || [])]
+  if (ordem === 'acertos') {
+    linhas.sort((a, b) => b.acertos / b.jogos - a.acertos / a.jogos || b.jogos - a.jogos)
+  }
+
+  return (
+    <section className="pl-estatisticas-analise" aria-labelledby="pl-estatisticas-desempenho">
+      <h3 id="pl-estatisticas-desempenho">Onde ganhas mais pontos</h3>
+      {!estado && <p role="status">A carregar o desempenho…</p>}
+      {estado?.erro && (
+        <div className="pl-estatisticas-controlos">
+          <p role="alert">Não foi possível carregar o desempenho.</p>
+          <button type="button" onClick={() => {
+            setEstado(null)
+            setTentativa(valor => valor + 1)
+          }}>Tentar novamente</button>
+        </div>
+      )}
+      {dados && !dados.equipas.length && !dados.competicoes.length &&
+        <p>Ainda não tens prognósticos pontuados nesta época.</p>}
+      {dados && linhas.length > 0 && (
+        <>
+          <div className="pl-estatisticas-controlos">
+            <label htmlFor="pl-desempenho-grupo">Agrupar por</label>
+            <select id="pl-desempenho-grupo" value={grupo} onChange={e => {
+              setGrupo(e.target.value)
+              setMostrarTodas(false)
+            }}>
+              <option value="equipas">Equipa</option>
+              <option value="competicoes">Competição de futebol</option>
+            </select>
+            <label htmlFor="pl-desempenho-ordem">Ordenar por</label>
+            <select id="pl-desempenho-ordem" value={ordem} onChange={e => setOrdem(e.target.value)}>
+              <option value="pontos">Pontos</option>
+              <option value="acertos">Taxa de acerto</option>
+            </select>
+          </div>
+          <ul className="pl-estatisticas-desempenho">
+            {(mostrarTodas ? linhas : linhas.slice(0, 10)).map(linha => (
+              <li key={linha.chave}>
+                <div className="pl-estatisticas-barra-topo">
+                  <strong>{linha.nome || (linha.chave ? nomesCompeticoes[linha.chave] || linha.chave : 'Sem competição oficial associada')}</strong>
+                  <strong>{linha.pontos} {linha.pontos === 1 ? 'ponto' : 'pontos'}</strong>
+                </div>
+                <span>{linha.acertos} {linha.acertos === 1 ? 'acerto' : 'acertos'} em {linha.jogos} {linha.jogos === 1 ? 'jogo' : 'jogos'}
+                  {' · '}{percentagem(linha.acertos, linha.jogos)}{' · '}{linha.exatos} {linha.exatos === 1 ? 'exato' : 'exatos'}</span>
+              </li>
+            ))}
+          </ul>
+          {linhas.length > 10 && <div className="pl-estatisticas-controlos">
+            <button type="button" onClick={() => setMostrarTodas(valor => !valor)}>
+              {mostrarTodas ? 'Mostrar menos' : `Mostrar todas (${linhas.length})`}
+            </button>
+          </div>}
+          <p className="pl-estatisticas-nota">
+            Só contam jogos com prognóstico pontuado. Os acertos incluem resultados exatos e tendências certas.
+            {grupo === 'equipas' && ' Cada jogo conta no desempenho das duas equipas.'}
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function Estatisticas({ competicaoId }) {
   const [selecao, setSelecao] = useState(null)
   const [atualizacao, setAtualizacao] = useState(0)
@@ -372,6 +467,8 @@ export default function Estatisticas({ competicaoId }) {
           <p className="pl-estatisticas-nota">As percentagens usam apenas os teus prognósticos pontuados. Só tendência exclui resultados exatos.
             A taxa de acerto inclui ambos. Jogos terminados sem prognóstico: <strong>{resumo.semPrognostico}</strong> — não são contados como erros.</p>
         </section>
+        <DesempenhoPrognosticos key={`${competicaoId}:${dados.epoca.id}:${atualizacao}`}
+          competicaoId={competicaoId} epocaId={dados.epoca.id} />
         <section className="pl-estatisticas-analise">
           <h3>📈 Pontos por jornada</h3>
           {!dados.jornadas.length && <p>Não existem jornadas registadas nesta época.</p>}
