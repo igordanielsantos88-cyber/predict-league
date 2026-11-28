@@ -221,6 +221,20 @@ const estilos = `
     margin-top: 8px;
   }
 
+  .pl-jornadas-pendencia { border-top: 1px solid #344156; padding: 10px 0; }
+  .pl-jornadas-pendencia > summary { padding: 9px 0; color: #e8c76a; font-weight: bold; cursor: pointer; }
+  .pl-jornadas-pendencia ul { padding: 0; list-style: none; }
+  .pl-jornadas-pendencia li {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    gap: 8px; padding: 9px 0; border-top: 1px solid #344156;
+  }
+  .pl-jornadas-pendencia li div { min-width: 0; overflow-wrap: anywhere; }
+  .pl-jornadas-pendencia li small { display: block; color: #abb8ce; }
+  .pl-jornadas-jogo:focus, .pl-jornadas-pendencia summary:focus-visible {
+    outline: 2px solid #e8c76a; outline-offset: 3px;
+  }
+  .pl-jornadas-jogo { scroll-margin-top: 14px; }
+
   .pl-jornadas-resultado {
     padding: 10px 13px;
     background: #0d1523;
@@ -322,12 +336,32 @@ function notaMarcadorOficial(houveDesempate) {
     : 'Marcador final recebido da Football-Data.org. Revê antes de publicar.'
 }
 
+function PendenciasJogos({ titulo, pendencias, ocupado, abrir, acao }) {
+  return (
+    <details className="pl-jornadas-pendencia">
+      <summary>{titulo} ({pendencias.length})</summary>
+      {pendencias.length ? (
+        <ul>{pendencias.map(({ chave, jogo, nota, lado }) => (
+          <li key={chave}>
+            <div>{jogo.home_team} vs {jogo.away_team}<small>{nota}</small></div>
+            <button type="button" className="pl-jornadas-botao-secundario" disabled={ocupado}
+              onClick={() => abrir(jogo, lado)}>{acao || 'Ver jogo'}</button>
+          </li>
+        ))}</ul>
+      ) : <p>Nenhuma pendência.</p>}
+    </details>
+  )
+}
+
 export default function Jornadas({ competicaoId }) {
   const [epoca, setEpoca] = useState(null)
   const [jornadas, setJornadas] = useState([])
   const [jogos, setJogos] = useState([])
   const [emblema, setEmblema] = useState(null)
   const [notaEmblema, setNotaEmblema] = useState('')
+  const [emblemasFalhados, setEmblemasFalhados] = useState({})
+  const [relatorioCalendario, setRelatorioCalendario] = useState(null)
+  const [cartaoPretendido, setCartaoPretendido] = useState(null)
   const [nome, setNome] = useState('')
   const [selecionada, setSelecionada] = useState(null)
   const [casa, setCasa] = useState('')
@@ -346,6 +380,13 @@ export default function Jornadas({ competicaoId }) {
   const [soPorFechar, setSoPorFechar] = useState(false)
   const [agora, setAgora] = useState(Date.now)
   const focoResultado = useRef(null)
+
+  useEffect(() => {
+    if (!cartaoPretendido) return
+    const cartao = document.getElementById(`gerir-jogo-${cartaoPretendido.id}`)
+    cartao?.focus()
+    cartao?.scrollIntoView({ block: 'start' })
+  }, [cartaoPretendido])
 
   useEffect(() => {
     if (resultadoId) focoResultado.current?.focus()
@@ -499,6 +540,17 @@ export default function Jornadas({ competicaoId }) {
     setEmblema({ jogoId: jogo.id, lado })
   }
 
+  function abrirCartao(jogo, lado) {
+    setSoPorFechar(false)
+    setCartaoPretendido({ id: jogo.id })
+    if (lado) escolherEmblema(jogo, lado)
+  }
+
+  function registarFalhaEmblema(jogo, lado, origem) {
+    const chave = `${jogo.id}:${lado}`
+    setEmblemasFalhados(anteriores => anteriores[chave] === origem ? anteriores : { ...anteriores, [chave]: origem })
+  }
+
   function reverMarcadorOficial(jogo, marcador) {
     setSoPorFechar(false)
     setResultadoId(jogo.id)
@@ -636,6 +688,26 @@ export default function Jornadas({ competicaoId }) {
   }
 
   const idsJornadas = new Set(jornadas.map(jornada => jornada.id))
+  const relatorio = relatorioCalendario?.epocaId === epoca.id ? relatorioCalendario.jogos : []
+  const horariosDoFornecedor = new Map(relatorio.filter(item => item.acao === 'rever' &&
+    /adiou ou cancelou|prazo anterior já fechou/i.test(item.motivo || '')).map(item => [String(item.id), item.motivo]))
+  const horarios = []
+  const emblemas = []
+  for (const jogo of jogos) {
+    if (!idsJornadas.has(jogo.jornada_id)) continue
+    const horario = jogo.football_data_competition === 'PPL' && horariosDoFornecedor.get(String(jogo.football_data_match_id))
+    if ((jogo.status === 'scheduled' && (!jogo.kickoff || horario)) || jogo.status === 'postponed') {
+      horarios.push({ chave: jogo.id, jogo, nota: horario || 'Hora por confirmar' })
+    }
+    for (const [lado, nomeEquipa, origem] of [
+      ['casa', jogo.home_team, jogo.home_crest], ['fora', jogo.away_team, jogo.away_crest],
+    ]) {
+      const chave = `${jogo.id}:${lado}`
+      if (!origem || emblemasFalhados[chave] === origem) {
+        emblemas.push({ chave, jogo, lado, nota: nomeEquipa })
+      }
+    }
+  }
   const jogosPorFechar = new Set(jogos.filter(jogo =>
     idsJornadas.has(jogo.jornada_id) && Date.parse(jogo.kickoff) <= agora &&
     (jogo.status === 'scheduled' || (jogo.status === 'finished' &&
@@ -653,12 +725,19 @@ export default function Jornadas({ competicaoId }) {
         jogos bónus de cada jornada e regista os resultados.
       </p>
 
-      <CalendarioLigaPortugal key={epoca.id} epocaId={epoca.id} atualizarJogos={() => atualizarListas(epoca.id)} />
+      <section className="pl-jornadas-painel" aria-labelledby="pl-jornadas-por-tratar">
+        <h3 id="pl-jornadas-por-tratar">Por tratar</h3>
+        <MarcadoresPorRever key={`marcadores:${epoca.id}`} epocaId={epoca.id} jogos={jogos}
+          jornadas={jornadas} ocupado={ocupado} aoRever={reverMarcadorOficial} />
+        <PendenciasJogos titulo="Horários a rever" pendencias={horarios} ocupado={ocupado} abrir={abrirCartao} />
+        <PendenciasJogos titulo="Emblemas por corrigir" pendencias={emblemas} ocupado={ocupado}
+          abrir={abrirCartao} acao="Corrigir emblema" />
+      </section>
+
+      <CalendarioLigaPortugal key={epoca.id} epocaId={epoca.id} atualizarJogos={() => atualizarListas(epoca.id)}
+        aoCarregarRelatorio={setRelatorioCalendario} />
       <ImportarJogosOficiais key={`oficiais:${epoca.id}`} epocaId={epoca.id} jornadas={jornadas} jogosDaEpoca={jogos}
         atualizarJogos={() => atualizarListas(epoca.id)} />
-
-      <MarcadoresPorRever key={`marcadores:${epoca.id}`} epocaId={epoca.id} jogos={jogos}
-        jornadas={jornadas} ocupado={ocupado} aoRever={reverMarcadorOficial} />
 
       <section className="pl-jornadas-painel">
         <h3>➕ Criar nova jornada</h3>
@@ -754,16 +833,16 @@ export default function Jornadas({ competicaoId }) {
               )}
 
               {jogosVisiveis.map(jogo => (
-                <div key={jogo.id} className="pl-jornadas-jogo">
+                <div key={jogo.id} id={`gerir-jogo-${jogo.id}`} tabIndex={-1} className="pl-jornadas-jogo">
                   <div className="pl-jornadas-jogo-topo">
                     <span className="pl-jornadas-data">
-                      📅 {new Date(jogo.kickoff).toLocaleString(
+                      📅 {jogo.kickoff ? new Date(jogo.kickoff).toLocaleString(
                         'pt-PT',
                         {
                           dateStyle: 'short',
                           timeStyle: 'short',
                         }
-                      )}
+                      ) : 'Hora por confirmar'}
                     </span>
 
                     <div style={{
@@ -788,7 +867,8 @@ export default function Jornadas({ competicaoId }) {
                   <div className="pl-jornadas-equipas">
                     <span className="pl-jornadas-equipa">
                       <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest}
-                        aoCorrigir={() => escolherEmblema(jogo, 'casa')} />
+                        aoCorrigir={() => escolherEmblema(jogo, 'casa')}
+                        aoFalhar={origem => registarFalhaEmblema(jogo, 'casa', origem)} />
                       <span>{jogo.home_team}</span>
                     </span>
 
@@ -800,7 +880,8 @@ export default function Jornadas({ competicaoId }) {
 
                     <span className="pl-jornadas-equipa">
                       <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest}
-                        aoCorrigir={() => escolherEmblema(jogo, 'fora')} />
+                        aoCorrigir={() => escolherEmblema(jogo, 'fora')}
+                        aoFalhar={origem => registarFalhaEmblema(jogo, 'fora', origem)} />
                       <span>{jogo.away_team}</span>
                     </span>
                   </div>
@@ -826,7 +907,7 @@ export default function Jornadas({ competicaoId }) {
                     <button
                       type="button"
                       className="pl-jornadas-botao-secundario"
-                      disabled={ocupado}
+                      disabled={ocupado || !jogo.kickoff}
                       onClick={() => {
                         setErroResultado('')
                         setNotaResultado('')

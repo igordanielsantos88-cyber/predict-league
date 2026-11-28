@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function EmblemaEquipa({ nome, origem, aoCorrigir }) {
+export default function EmblemaEquipa({ nome, origem, aoCorrigir, aoFalhar }) {
   const [falhou, setFalhou] = useState(null)
   const nomeLimpo = nome.trim()
   const palavras = nomeLimpo.split(/[\s-]+/).filter(Boolean)
@@ -23,7 +23,7 @@ export default function EmblemaEquipa({ nome, origem, aoCorrigir }) {
     <span className="pl-emblema" aria-hidden="true">
       {mostrarImagem ? (
         <img src={origem} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"
-          onError={() => setFalhou(origem)} />
+          onError={() => { setFalhou(origem); aoFalhar?.(origem) }} />
       ) : texto}
     </span>
   )

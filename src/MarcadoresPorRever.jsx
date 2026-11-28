@@ -78,8 +78,8 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
   })
 
   return (
-    <section className="pl-jornadas-painel">
-      <h3>Marcadores oficiais por rever ({porRever.length})</h3>
+    <details className="pl-jornadas-pendencia">
+      <summary>Marcadores oficiais por rever{marcadores ? ` (${porRever.length})` : ''}</summary>
       <p>Os marcadores da Football-Data.org ficam aqui até confirmares a publicação de cada jogo.</p>
       <button type="button" className="pl-jornadas-botao-secundario"
         disabled={ocupado || aConsultar} onClick={consultar}>
@@ -124,6 +124,6 @@ export default function MarcadoresPorRever({ epocaId, jogos, jornadas, ocupado, 
           ) : <p>Nenhum jogo nesta lista.</p>}
         </details>
       )}
-    </section>
+    </details>
   )
 }

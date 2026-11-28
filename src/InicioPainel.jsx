@@ -51,29 +51,47 @@ function UltimaJornada({ competicaoId, abrir, atualizacao }) {
 }
 
 export default function InicioPainel({ resumo, aCarregar, erro, competicaoId, abrir, atualizar, atualizacao }) {
-  const [jogo, ...seguintes] = aCarregar || erro ? [] : resumo.proximos
+  const mostrarCalendario = !aCarregar && !erro
+  const proximoPendente = mostrarCalendario && resumo.proximoPendente
+  const jogo = proximoPendente || (mostrarCalendario && resumo.proximos[0])
+  const resultado = mostrarCalendario && !jogo && resumo.ultimoResultado
+  const destaque = jogo || resultado
+  const seguintes = mostrarCalendario ? resumo.proximos.filter(item => item.id !== jogo?.id).slice(0, 3) : []
   const pendentes = resumo.porFazer ?? 0
+
+  const kickoff = jogo?.kickoff
+  useEffect(() => {
+    if (!kickoff) return
+    const prazo = Date.parse(kickoff) - Date.now()
+    // Navegadores limitam a duração máxima de um temporizador.
+    if (!Number.isFinite(prazo) || prazo > 2147483547) return
+    const tempo = window.setTimeout(atualizar, Math.max(0, prazo) + 100)
+    return () => window.clearTimeout(tempo)
+  }, [kickoff, atualizar])
   return (
     <>
       <section className="pl-proximo" aria-labelledby="pl-proximo-titulo" aria-busy={aCarregar}>
-        <h2 id="pl-proximo-titulo">Próximo jogo</h2>
-        {jogo ? (
+        <h2 id="pl-proximo-titulo">
+          {proximoPendente ? 'Próximo prognóstico em falta' : resultado ? 'Último resultado' : 'Próximo jogo'}
+        </h2>
+        {destaque ? (
           <>
             <div className="pl-proximo-equipas">
               <div className="pl-proximo-equipa">
-                <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
-                <strong>{jogo.home_team}</strong>
+                <EmblemaEquipa nome={destaque.home_team} origem={destaque.home_crest} />
+                <strong>{destaque.home_team}</strong>
               </div>
-              <span>vs</span>
+              <span>{resultado ? `${resultado.home_score}–${resultado.away_score}` : 'vs'}</span>
               <div className="pl-proximo-equipa">
-                <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
-                <strong>{jogo.away_team}</strong>
+                <EmblemaEquipa nome={destaque.away_team} origem={destaque.away_crest} />
+                <strong>{destaque.away_team}</strong>
               </div>
             </div>
             <div className="pl-proximo-rodape">
-              <p>Prazo até <time dateTime={jogo.kickoff}>{horaLisboa.format(new Date(jogo.kickoff))}</time></p>
-              <button type="button" className="pl-gold-button" onClick={() => abrir('proximo-jogo', jogo.id)}>
-                {jogo.prognosticado ? 'Ver prognóstico' : 'Fazer prognóstico'} <span aria-hidden="true">→</span>
+              {destaque.kickoff && <p>{proximoPendente && 'Prazo até '}
+                <time dateTime={destaque.kickoff}>{horaLisboa.format(new Date(destaque.kickoff))}</time></p>}
+              <button type="button" className="pl-gold-button" onClick={() => abrir('proximo-jogo', destaque.id)}>
+                {resultado ? 'Ver resultado' : proximoPendente ? 'Fazer prognóstico' : 'Ver jogo'} <span aria-hidden="true">→</span>
               </button>
             </div>
           </>

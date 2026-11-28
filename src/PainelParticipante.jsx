@@ -2,6 +2,7 @@ import { lazy, useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import SecaoCarregavel from './SecaoCarregavel'
 import InicioPainel from './InicioPainel'
+import { obterResumoInicio } from './resumoInicio'
 import { BarraPainel, SecoesPainel } from './NavegacaoPainel'
 const JogosParticipante = lazy(() => import('./JogosParticipante'))
 const Liga = lazy(() => import('./Liga'))
@@ -105,66 +106,13 @@ useEffect(() => {
     ativo = false
   }
 }, [])
-  const carregarResumo = useCallback(async (signal) => {
-  if (!competicaoId) return
-
-  setACarregarResumo(true)
+  const carregarResumo = useCallback(async signal => {
+    if (!competicaoId) return
+    setACarregarResumo(true)
     setErroResumo('')
     try {
-      const { data: { user }, error: erroUser } = await supabase.auth.getUser()
-      if (erroUser || !user) throw new Error('Não foi possível identificar o utilizador.')
-
-      const [resultadoClassificacao, resultadoEpoca] = await Promise.all([
-        supabase.rpc('obter_classificacao', { p_competition_id: competicaoId }),
-        supabase.from('seasons').select('id').eq('competition_id', competicaoId).eq('status', 'active').maybeSingle(),
-      ])
-      if (resultadoClassificacao.error) throw resultadoClassificacao.error
-      if (resultadoEpoca.error) throw resultadoEpoca.error
-      if (signal.aborted) return
-
-      const tabela = resultadoClassificacao.data || []
-      const indice = tabela.findIndex(jogador => jogador.user_id === user.id)
-      const meusDados = indice >= 0 ? tabela[indice] : null
-      let proximos = []
-      let porFazer = 0
-
-      if (resultadoEpoca.data?.id) {
-        const { data: jogos, error: erroJogos } = await supabase
-          .from('matches')
-          .select('id,home_team,away_team,home_crest,away_crest,kickoff')
-          .eq('competition_id', competicaoId)
-          .eq('season_id', resultadoEpoca.data.id)
-          .eq('status', 'scheduled')
-          .not('jornada_id', 'is', null)
-          .gt('kickoff', new Date().toISOString())
-          .order('kickoff', { ascending: true })
-        if (erroJogos) throw erroJogos
-        if (signal.aborted) return
-
-        const futuros = jogos || []
-        if (futuros.length) {
-          const ids = futuros.map(jogo => jogo.id)
-          const { data: palpites, error: erroPalpites } = await supabase
-            .from('predictions')
-            .select('match_id')
-            .eq('user_id', user.id)
-            .in('match_id', ids)
-          if (erroPalpites) throw erroPalpites
-          if (signal.aborted) return
-          const preenchidos = new Set((palpites || []).map(p => p.match_id))
-          porFazer = futuros.filter(jogo => !preenchidos.has(jogo.id)).length
-          proximos = futuros.slice(0, 4).map(jogo => ({ ...jogo, prognosticado: preenchidos.has(jogo.id) }))
-        }
-      }
-
-      if (!signal.aborted) {
-        setResumo({
-          posicao: indice >= 0 ? indice + 1 : null,
-          pontos: meusDados ? Number(meusDados.pontos) : null,
-          proximos,
-          porFazer,
-        })
-      }
+      const dados = await obterResumoInicio(competicaoId, signal)
+      if (!signal.aborted) setResumo(dados)
     } catch (error) {
       if (!signal.aborted) setErroResumo(error?.message || 'Não foi possível carregar o resumo.')
     } finally {

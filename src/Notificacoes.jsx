@@ -16,6 +16,13 @@ const estilos = `
 .pl-notificacoes button[aria-pressed=true] { background:#d4af37; color:#211806; }
 .pl-notificacoes .pn-nota { color:#a7b5c9; font-size:14px; }
 .pl-notificacoes .pn-lista { list-style:none; padding:0; display:grid; gap:12px; }
+.pl-notificacoes .pn-item.pn-grupo { padding:0; }
+.pl-notificacoes .pn-grupo summary {
+  padding:12px 16px; cursor:pointer; color:#e8c76a; overflow-wrap:anywhere;
+}
+.pl-notificacoes .pn-grupo summary:focus-visible { outline:2px solid #f0d477; outline-offset:2px; border-radius:10px; }
+.pl-notificacoes .pn-grupo .pn-lista { margin:0 10px 10px; }
+.pl-notificacoes .pn-grupo .pn-contagem { color:#a7b5c9; font-size:13px; margin-left:8px; }
 .pl-notificacoes .pn-item { padding:20px; border:1px solid #354154; border-radius:14px; background:#101827; overflow-wrap:anywhere; }
 .pl-notificacoes .pn-nova { border-left:4px solid #d4af37; }
 .pl-notificacoes h3 { margin:0 0 8px; color:#e8c76a; font-size:17px; }
@@ -49,9 +56,39 @@ function categoria(tipo) {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function agruparPorJornada(avisos) {
+  const entradas = new Map()
+  for (const aviso of avisos) {
+    const chave = aviso.jornadaNome ? aviso.jornadaId : aviso.id
+    if (!entradas.has(chave)) entradas.set(chave, [])
+    entradas.get(chave).push(aviso)
+  }
+  return [...entradas]
+}
+
+function Aviso({ aviso: n, aMarcar, carregando, marcar }) {
+  return (
+    <li className={`pn-item${n.lida ? '' : ' pn-nova'}`}>
+      <h3>{n.titulo}</h3>
+      <div className="pn-meta"><span>{categoria(n.tipo)}</span><span>{n.lida ? 'Lida' : 'Por ler'}</span>
+        <time dateTime={n.criada_em}>{new Date(n.criada_em).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</time>
+      </div>
+      <p>{n.mensagem}</p>
+      {(!n.lida || n.jogoId) && <div className="pn-acoes">
+        {n.jogoId && <a className="pn-ligacao" href={`/?jogo=${n.jogoId}`}>Ver jogo</a>}
+        {n.tipo === 'match_result' && n.jornadaId && <a className="pn-ligacao" href={`/?jornada=${n.jornadaId}`}>Ver jornada</a>}
+        {!n.lida && <button type="button" disabled={!!aMarcar || carregando} onClick={() => marcar('individual', n.id)}>
+          {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
+        </button>}
+      </div>}
+    </li>
+  )
+}
+
 export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
   const [estado, setEstado] = useState({ itens: null, erro: '', carregando: true })
   const [filtro, setFiltro] = useState('todas')
+  const [preferenciasVisitadas, setPreferenciasVisitadas] = useState(false)
   const [aMarcar, setAMarcar] = useState(null)
   const [erroMarcacao, setErroMarcacao] = useState('')
   const [mensagemMarcacao, setMensagemMarcacao] = useState('')
@@ -83,7 +120,7 @@ export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
       controller = new AbortController()
       const signal = controller.signal
       ultimaTentativa = Date.now()
-      setEstado({ itens: null, erro: '', carregando: true })
+      setEstado({ itens, erro: '', carregando: true })
       try {
         const { data, error } = await supabase.auth.getUser()
         if (!ativo || atual !== pedido) return
@@ -113,7 +150,23 @@ export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
             }
           }
         }
-        itens = avisos.map(aviso => ({ ...aviso, ...ligacoes.get(aviso.id) }))
+        const jogosIds = [...new Set([...ligacoes.values()].map(ligacao => ligacao.jogoId))]
+        const jornadasPorJogo = new Map()
+        if (jogosIds.length) {
+          const { data } = await supabase.from('matches').select('id,jornada_id,jornadas(numero,nome)')
+            .in('id', jogosIds).abortSignal(signal)
+          if (!ativo || atual !== pedido) return
+          for (const jogo of data || []) {
+            const jornada = jogo.jornadas
+            if (!uuid.test(jogo.jornada_id) || !jornada) continue
+            const nome = jornada.nome || (jornada.numero != null ? `Jornada ${jornada.numero}` : null)
+            if (nome) jornadasPorJogo.set(jogo.id, { jornadaId: jogo.jornada_id, jornadaNome: nome })
+          }
+        }
+        itens = avisos.map(aviso => {
+          const ligacao = ligacoes.get(aviso.id)
+          return { ...aviso, ...ligacao, ...jornadasPorJogo.get(ligacao?.jogoId) }
+        })
         setEstado({ itens, erro: '', carregando: false })
       } catch (error) {
         if (ativo && atual === pedido) {
@@ -222,15 +275,16 @@ export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
 
   const naoLidas = estado.itens?.filter(n => !n.lida).length
   const visiveis = estado.itens?.filter(n => filtro === 'todas' || !n.lida) ?? []
+  const grupos = agruparPorJornada(visiveis)
+  const renderAviso = aviso => <Aviso key={aviso.id} aviso={aviso} aMarcar={aMarcar}
+    carregando={estado.carregando} marcar={marcar} />
   return <section className="pl-notificacoes pl-secao" aria-label="As minhas notificações" aria-busy={estado.carregando}>
     <style>{estilos}</style>
-    <PushNotificacoes />
-    <PreferenciasPush />
     <div className="pn-topo">
       <span className="pn-contador">{naoLidas == null ? '—' : naoLidas} por ler nos últimos 50 avisos</span>
       <button type="button" disabled={estado.carregando || !!aMarcar} onClick={atualizar}>Atualizar</button>
     </div>
-    <p className="pn-nota">Avisos pessoais da tua conta, incluindo épocas de teste. Mostramos até 50, dos mais recentes para os mais antigos.</p>
+    <p className="pn-nota">Avisos pessoais da tua conta, incluindo épocas de teste. Mostramos até 50 avisos. Cada grupo fica na posição do seu aviso mais recente.</p>
     <div className="pn-acoes">
       <button type="button" aria-pressed={filtro === 'todas'} onClick={() => setFiltro('todas')}>Todas</button>
       <button type="button" aria-pressed={filtro === 'nao-lidas'} onClick={() => setFiltro('nao-lidas')}>Por ler</button>
@@ -244,21 +298,33 @@ export default function Notificacoes({ atualizarSino, naoLidasTotal }) {
     {estado.carregando && <p role="status">A carregar notificações…</p>}
     {estado.erro && <p role="alert" className="pn-erro">{estado.erro}</p>}
     {erroMarcacao && <p role="alert" className="pn-erro">{erroMarcacao}</p>}
-    {estado.itens && !visiveis.length && <p>{filtro === 'nao-lidas' ? 'Não tens avisos por ler entre os últimos 50.' : 'Ainda não tens notificações.'}</p>}
-    <ul className="pn-lista">{visiveis.map(n => <li className={`pn-item${n.lida ? '' : ' pn-nova'}`} key={n.id}>
-      <h3>{n.titulo}</h3>
-      <div className="pn-meta"><span>{categoria(n.tipo)}</span><span>{n.lida ? 'Lida' : 'Por ler'}</span>
-        <time dateTime={n.criada_em}>{new Date(n.criada_em).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</time>
-      </div>
-      <p>{n.mensagem}</p>
-      {(!n.lida || n.jogoId) && <div className="pn-acoes">
-        {n.jogoId && <a className="pn-ligacao" href={`/?jogo=${n.jogoId}`}>Ver jogo</a>}
-        {n.tipo === 'match_result' && n.jornadaId && <a className="pn-ligacao" href={`/?jornada=${n.jornadaId}`}>Ver jornada</a>}
-        {!n.lida && <button type="button" disabled={!!aMarcar || estado.carregando} onClick={() => marcar('individual', n.id)}>
-          {aMarcar === n.id ? 'A guardar…' : 'Marcar como lida'}
-        </button>}
-      </div>}
-    </li>)}</ul>
+    {estado.itens && !estado.carregando && !visiveis.length && <p>{filtro === 'nao-lidas' ? 'Não tens avisos por ler entre os últimos 50.' : 'Ainda não tens notificações.'}</p>}
+    <ul className="pn-lista">{grupos.map(([id, avisos]) => {
+      if (avisos.length === 1) return renderAviso(avisos[0])
+      const porLer = avisos.filter(aviso => !aviso.lida).length
+      const soResultados = avisos.every(aviso => aviso.tipo === 'match_result') &&
+        new Set(avisos.map(aviso => aviso.jogoId)).size === avisos.length
+      return (
+        <li key={id}>
+          <details className={`pn-item pn-grupo${porLer ? ' pn-nova' : ''}`}>
+            <summary>
+              <strong>{avisos.length} {soResultados ? 'resultados' : 'avisos'} · {avisos[0].jornadaNome}</strong>
+              {porLer > 0 && <span className="pn-contagem">{porLer} por ler</span>}
+            </summary>
+            <ul className="pn-lista">{avisos.map(renderAviso)}</ul>
+          </details>
+        </li>
+      )
+    })}</ul>
     <p className="pn-nota">Esta lista atualiza a cada minuto enquanto está aberta e visível. Os avisos refletem o momento em que foram criados; consulta os jogos para veres os dados atuais.</p>
+    <details className="pn-item pn-grupo" onToggle={evento => {
+      if (evento.currentTarget.open) setPreferenciasVisitadas(true)
+    }}>
+      <summary>Preferências de notificações</summary>
+      {preferenciasVisitadas && <div className="pn-lista">
+        <PushNotificacoes />
+        <PreferenciasPush />
+      </div>}
+    </details>
   </section>
 }

@@ -11,7 +11,7 @@ function anoDaEpoca() {
   return String(hoje.getFullYear() - (hoje.getMonth() < 6 ? 1 : 0))
 }
 
-export default function CalendarioLigaPortugal({ epocaId, atualizarJogos }) {
+export default function CalendarioLigaPortugal({ epocaId, atualizarJogos, aoCarregarRelatorio }) {
   const [config, setConfig] = useState(undefined)
   const [ano, setAno] = useState(anoDaEpoca)
   const [desvio, setDesvio] = useState('0')
@@ -33,6 +33,7 @@ export default function CalendarioLigaPortugal({ epocaId, atualizarJogos }) {
         return
       }
       setConfig(data)
+      aoCarregarRelatorio?.({ epocaId, jogos: data?.last_report?.jogos || [] })
       if (data) {
         setAno(String(data.season_year))
         setDesvio(String(data.round_offset))
@@ -42,7 +43,7 @@ export default function CalendarioLigaPortugal({ epocaId, atualizarJogos }) {
     }
     void carregar()
     return () => pedido.abort()
-  }, [epocaId])
+  }, [epocaId, aoCarregarRelatorio])
 
   async function guardar(evento) {
     evento.preventDefault()
@@ -56,6 +57,7 @@ export default function CalendarioLigaPortugal({ epocaId, atualizarJogos }) {
       if (error || !data) throw new Error(error?.message || 'Não foi possível guardar a configuração.')
       setConfig(data)
       setRelatorio(data.last_report)
+      aoCarregarRelatorio?.({ epocaId, jogos: data.last_report?.jogos || [] })
       setMensagem({ texto: 'Configuração guardada.' })
     } catch (error) {
       setMensagem({ erro: true, texto: error.message })
@@ -79,6 +81,7 @@ export default function CalendarioLigaPortugal({ epocaId, atualizarJogos }) {
       setRelatorio(data)
       if (!previa) {
         setConfig(anterior => ({ ...anterior, last_sync_at: data.sincronizadoEm, last_report: data }))
+        aoCarregarRelatorio?.({ epocaId, jogos: data.jogos })
         await atualizarJogos()
       }
     } catch (error) {
