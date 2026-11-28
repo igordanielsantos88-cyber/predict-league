@@ -87,7 +87,7 @@ function CampoGolos({ nome, lado, valor, desativado, alterar }) {
           aria-label={`Golos de ${nome}`} placeholder="–" value={valor} disabled={desativado}
           onChange={e => alterar(e.target.value)} />
         <button type="button" className="pl-jogo-ajustar" aria-label={`Acrescentar um golo a ${nome}`}
-          disabled={desativado || (valor !== '' && !valido)} onClick={() => alterar(String(valido ? numero + 1 : 0))}>
+          disabled={desativado || (valor !== '' && !valido)} onClick={() => alterar(String(valido ? numero + 1 : 1))}>
           <IconePainel nome="mais-golo" tamanho={19} />
         </button>
       </div>
