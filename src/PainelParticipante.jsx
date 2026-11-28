@@ -38,11 +38,13 @@ function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, naoLidasTot
     if (pedidoNotificacoes > 0) setPagina('notificacoes')
   }, [pedidoNotificacoes])
   const [competicaoId, setCompeticaoId] = useState(null)
+  const [aCarregarCompeticao, setACarregarCompeticao] = useState(true)
   const [alvoDoPainel, setAlvoDoPainel] = useState(null)
   const [resumo, setResumo] = useState({ posicao: null, pontos: null, proximos: [], porFazer: null })
   const [aCarregarResumo, setACarregarResumo] = useState(true)
   const [erroResumo, setErroResumo] = useState('')
   const [atualizacao, setAtualizacao] = useState(0)
+  const atualizarInicio = useCallback(() => setAtualizacao(n => n + 1), [])
 useEffect(() => {
   let ativo = true
 
@@ -62,6 +64,7 @@ useEffect(() => {
     } else {
       console.error('Não foi possível identificar uma única competição ativa.')
     }
+    setACarregarCompeticao(false)
   }
 
   carregarCompeticaoAtiva()
@@ -116,7 +119,7 @@ useEffect(() => {
 
   return (
     <div className="pl-dashboard">
-      <header className="pl-header">
+      {pagina !== 'inicio' && <header className="pl-header">
         <div className="pl-logo">
           <div>
             <h1>A tua liga</h1>
@@ -126,12 +129,12 @@ useEffect(() => {
         {pagina !== 'inicio' && (
           <button type="button" className="pl-back" onClick={() => abrir('inicio')}><IconePainel nome="voltar" tamanho={18} /> Início</button>
         )}
-      </header>
+      </header>}
 
       {pagina === 'inicio' ? (
         <>
-          <InicioPainel resumo={resumo} aCarregar={Boolean(competicaoId) && aCarregarResumo}
-            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={() => setAtualizacao(n => n + 1)} />
+          <InicioPainel resumo={resumo} aCarregar={aCarregarCompeticao || (Boolean(competicaoId) && aCarregarResumo)}
+            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={atualizarInicio} />
           <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} />
         </>
       ) : pagina === 'mais' ? (

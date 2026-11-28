@@ -51,6 +51,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
   const [aCarregarResumo, setACarregarResumo] = useState(true)
   const [erroResumo, setErroResumo] = useState('')
   const [atualizacao, setAtualizacao] = useState(0)
+  const atualizarInicio = useCallback(() => setAtualizacao(n => n + 1), [])
 
   useEffect(() => {
     let ativo = true
@@ -130,7 +131,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
 
   return (
     <div className="pl-dashboard">
-      <header className="pl-header">
+      {pagina !== 'inicio' && <header className="pl-header">
         <div className="pl-logo">
           <div>
             <h1>A tua liga</h1>
@@ -140,7 +141,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
         {pagina !== 'inicio' && (
           <button type="button" className="pl-back" onClick={() => abrir('inicio')}><IconePainel nome="voltar" tamanho={18} /> Início</button>
         )}
-      </header>
+      </header>}
 
       {erroCompeticao && <p className="pl-info pl-info-error" role="alert">{erroCompeticao}</p>}
       {aCarregarCompeticao && <p className="pl-info">A identificar a competição ativa...</p>}
@@ -148,7 +149,7 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
       {pagina === 'inicio' ? (
         <>
           <InicioPainel resumo={resumo} aCarregar={aCarregarCompeticao || (Boolean(competicaoId) && aCarregarResumo)}
-            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={() => setAtualizacao(n => n + 1)} />
+            erro={erroResumo} competicaoId={competicaoId} abrir={abrir} atualizacao={atualizacao} atualizar={atualizarInicio} />
           <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} />
         </>
       ) : pagina === 'mais' ? (

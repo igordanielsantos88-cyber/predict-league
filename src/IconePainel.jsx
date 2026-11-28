@@ -14,6 +14,12 @@ const formas = {
   jornadas: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4m8-4v4M3 10h18m-13 5h2m4 0h2m-8 3h2" /></>,
   participantes: <><circle cx="9" cy="8" r="3" /><path d="M3 20v-3a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v3m2-15a3 3 0 0 1 0 6m1 2a4 4 0 0 1 3 4v3" /></>,
   'diagnostico-push': <><path d="M3 12h4l3-7 4 14 3-7h4" /></>,
+  atualizar: <><path d="M20 7v5h-5M4 17v-5h5M5 10a7 7 0 0 1 12-4l3 6M4 12l3 6a7 7 0 0 0 12-4" /></>,
+  relogio: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  avancar: <><path d="m9 6 6 6-6 6" /></>,
+  visto: <><path d="m5 12 4 4L19 6" /></>,
+  subir: <><path d="M12 19V5m-6 6 6-6 6 6" /></>,
+  descer: <><path d="M12 5v14m-6-6 6 6 6-6" /></>,
   voltar: <><path d="m14 6-6 6 6 6M8 12h13" /></>,
 }
 export default function IconePainel({ nome, tamanho = 22 }) {
