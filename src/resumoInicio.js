@@ -22,6 +22,7 @@ export async function obterResumoInicio(competicaoId, signal) {
     pontos: indice >= 0 ? Number(tabela[indice].pontos) : null,
     proximos: [],
     porFazer: 0,
+    totalFuturos: 0,
     proximoPendente: null,
     ultimoResultado: null,
   }
@@ -57,6 +58,7 @@ export async function obterResumoInicio(competicaoId, signal) {
     ...resumo,
     proximos: futuros.slice(0, 4),
     porFazer: pendentes.length,
+    totalFuturos: futuros.length,
     proximoPendente: pendentes[0] ?? null,
   }
 }

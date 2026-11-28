@@ -1,382 +1,13 @@
 import EmblemaEquipa from './EmblemaEquipa'
 import PalpiteDaLiga from './PalpiteDaLiga'
+import IconePainel from './IconePainel'
+import './jogosParticipante.css'
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { adicionarJogoAoCalendario } from './calendarioJogo'
 import { atualizarRascunho, lerRascunho, removerRascunhoEnviado } from './rascunhosPrognosticos'
 
-const estilos = `
-  .pl-jogos {
-    color: #f8fafc;
-    font-family: Arial, sans-serif;
-  }
-
-  .pl-jogos * {
-    box-sizing: border-box;
-  }
-
-  .pl-jogos-titulo {
-    color: #e8c76a;
-    font-size: 24px;
-    margin: 0 0 8px;
-  }
-
-  .pl-jogos-subtitulo {
-    color: #94a3b8;
-    font-size: 14px;
-    margin-bottom: 24px;
-  }
-
-  .pl-jogos-filtros {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-  }
-
-  .pl-jogos-filtro {
-    padding: 11px 17px;
-    border-radius: 10px;
-    border: 1px solid #3d3b30;
-    background: #1b2535;
-    color: #cbd5e1;
-    cursor: pointer;
-    font-weight: bold;
-    transition: .2s;
-  }
-
-  .pl-jogos-filtro:hover {
-    border-color: #d4af37;
-  }
-
-  .pl-jogos-filtro.ativo {
-    background: linear-gradient(135deg, #f0d477, #c69c32);
-    color: #211806;
-    border-color: #d4af37;
-  }
-
-  .pl-jornada {
-    margin-bottom: 22px;
-    border: 1px solid #3d3b30;
-    border-radius: 15px;
-    overflow: hidden;
-    background: #111827;
-  }
-
-  .pl-jornada-summary {
-    padding: 18px 20px;
-    color: #e8c76a;
-    background: #1b2535;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    list-style-position: inside;
-  }
-
-  .pl-jornada-conteudo {
-    padding: 16px;
-  }
-
-  .pl-jogos-dia { margin: 16px 0 8px; color: #cbd5e1; font-size: 14px; }
-  .pl-jogo-linha {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    width: 100%;
-    margin: 0 0 6px;
-    padding: 7px 10px;
-    text-align: left;
-    color: #f8fafc;
-    background: #172338;
-    border: 1px solid #39465b;
-    border-radius: 8px;
-    cursor: pointer;
-    --pl-emblema-tamanho: 27px;
-    --pl-emblema-letra: 10px;
-  }
-  .pl-jogo-linha:hover, .pl-jogo-linha[aria-expanded="true"] { border-color: #d4af37; }
-  .pl-jogo-linha-equipas {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 6px;
-    flex: 1 1 320px;
-  }
-  .pl-jogo-linha-equipa {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    overflow-wrap: anywhere;
-  }
-  .pl-jogo-linha-equipa:first-child { justify-content: end; text-align: right; }
-  .pl-jogo-linha-marcador { font-weight: bold; color: #f0d477; white-space: nowrap; }
-  .pl-jogo-linha-estado { color: #cbd5e1; font-size: 12px; }
-
-  .pl-jogo-cartao {
-    background: #152033;
-    border: 1px solid #344156;
-    border-radius: 15px;
-    padding: 22px;
-    margin-bottom: 14px;
-  }
-
-  .pl-jogo-cartao:last-child {
-    margin-bottom: 0;
-  }
-
-  .pl-jogo-cartao:focus {
-    outline: 2px solid #f0d477;
-    outline-offset: 3px;
-    scroll-margin-top: 16px;
-  }
-
-  .pl-jogo-topo {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .pl-jogo-data {
-    color: #94a3b8;
-    font-size: 13px;
-  }
-
-  .pl-jogo-prazo {
-    color: #cbd5e1;
-    font-size: 13px;
-  }
-
-  .pl-jogo-prazo-urgente {
-    color: #f0d477;
-    background: #3a2f1b;
-    border-radius: 20px;
-    padding: 5px 9px;
-    font-weight: bold;
-  }
-
-  .pl-jogo-marcador {
-    background: #0d1523;
-    border: 1px solid #75613a;
-    padding: 7px 10px;
-    border-radius: 9px;
-    color: #f0d477;
-    font-weight: bold;
-    font-size: clamp(19px, 4vw, 28px);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .pl-jogo-rodape {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pl-jogo-etiqueta-sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .pl-gravacao {
-    margin: 10px 0 0;
-    color: #86efac;
-    font-size: 14px;
-  }
-
-  .pl-gravacao-erro {
-    color: #fca5a5;
-  }
-
-  .pl-palpite-estado {
-    color: #94a3b8;
-    font-size: 13px;
-    margin: 0;
-    background: #111a29;
-    border-radius: 12px;
-    padding: 5px 8px;
-  }
-
-  .pl-palpite-guardado { color: #86efac; }
-  .pl-palpite-rascunho { color: #f0d477; }
-  .pl-palpite-repor { margin: 8px; }
-
-  .pl-jogo-bonus {
-    display: inline-block;
-    background: #d4af371a;
-    border: 1px solid #d4af3760;
-    color: #f0d477;
-    border-radius: 20px;
-    padding: 7px 12px;
-    font-size: 12px;
-    font-weight: bold;
-  }
-
-  .pl-jogo-equipas {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 14px;
-    margin: 20px 0;
-    text-align: center;
-  }
-
-  .pl-jogo-equipa {
-    font-size: clamp(15px, 4vw, 23px);
-    font-weight: bold;
-    overflow-wrap: anywhere;
-  }
-
-  .pl-jogo-versus {
-    color: #d4af37;
-    font-size: 13px;
-    font-weight: bold;
-    padding: 9px;
-    border: 1px solid #8f722e;
-    border-radius: 8px;
-  }
-
-  .pl-jogo-divisor {
-    height: 1px;
-    background: #334155;
-    margin: 20px 0;
-  }
-
-  .pl-jogo-inputs {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin: 18px 0;
-  }
-
-  .pl-jogo-input {
-    width: 75px;
-    padding: 12px;
-    background: #0d1523;
-    color: #f8fafc;
-    border: 1px solid #8f722e;
-    border-radius: 10px;
-    font-size: 20px;
-    font-weight: bold;
-    text-align: center;
-    outline: none;
-  }
-
-  .pl-jogo-input:focus {
-    border-color: #f0d477;
-    box-shadow: 0 0 0 3px #d4af3720;
-  }
-
-  .pl-jogo-botao {
-    display: inline-block;
-    padding: 12px 18px;
-    background: linear-gradient(135deg, #f0d477, #c69c32);
-    color: #211806;
-    border: none;
-    border-radius: 10px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-
-  .pl-jogo-botao:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-  }
-
-  .pl-jogo-secundario {
-    background: #1b2535;
-    border: 1px solid #8f722e;
-    color: #e8c76a;
-    padding: 11px 16px;
-    border-radius: 10px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-
-  .pl-jogo-resultado {
-    background: #0d1523;
-    border: 1px solid #594821;
-    border-radius: 12px;
-    padding: 17px;
-    margin: 18px 0;
-  }
-
-  .pl-jogo-pontos {
-    color: #e8c76a;
-    font-weight: bold;
-    font-size: 17px;
-  }
-
-  .pl-jogo-outros {
-    margin-top: 15px;
-    padding: 16px;
-    background: #0d1523;
-    border: 1px solid #594821;
-    border-radius: 12px;
-  }
-
-  .pl-palpite-liga { margin-bottom: 12px; }
-  .pl-palpite-liga h4 { margin: 0 0 8px; color: #f0d477; }
-  .pl-palpite-liga p { margin: 8px 0; }
-  .pl-palpite-liga-linha {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 5px 8px;
-    margin: 10px 0;
-    text-align: left;
-    overflow-wrap: anywhere;
-  }
-  .pl-palpite-liga-barra {
-    grid-column: 1 / -1;
-    height: 6px;
-    border-radius: 4px;
-    background: #344156;
-    overflow: hidden;
-  }
-  .pl-palpite-liga-barra span { display: block; height: 100%; background: #d4af37; }
-
-  .pl-jogo-outro {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid #29384d;
-  }
-
-  .pl-jogo-outro:last-child {
-    border-bottom: none;
-  }
-
-  @media (max-width: 600px) {
-    .pl-jogo-cartao {
-      padding: 15px;
-    }
-
-    .pl-jornada-conteudo {
-      padding: 10px;
-    }
-
-    .pl-jogo-equipas {
-      gap: 8px;
-    }
-
-    .pl-jogo-input {
-      width: 65px;
-    }
-  }
-`
 
 function lerPrognostico(jogo, palpite) {
   if (palpite?.casa == null || palpite.fora == null || palpite.casa === '' || palpite.fora === '') return null
@@ -411,28 +42,56 @@ const horaDoJogo = new Intl.DateTimeFormat('pt-PT', {
   hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
 })
 
-function LinhaJogo({ jogo, aberto, alternar, golosCasa, golosFora, estado }) {
+function LinhaJogo({ jogo, aberto, alternar, golosCasa, golosFora, estado, classeEstado, palpite }) {
+  const temResultado = golosCasa != null && golosFora != null
   return (
     <button type="button" className="pl-jogo-linha" aria-expanded={aberto}
       aria-controls={`detalhe-${jogo.id}`} onClick={alternar}>
       <span className="pl-jogo-linha-equipas">
         <span className="pl-jogo-linha-equipa">
-          {jogo.home_team}
           <EmblemaEquipa nome={jogo.home_team} origem={jogo.home_crest} />
-        </span>
-        <span className="pl-jogo-linha-marcador">
-          {golosCasa != null && golosFora != null ? (
-            <><span className="pl-jogo-etiqueta-sr">Resultado oficial: </span>{golosCasa}–{golosFora}</>
-          ) : <time dateTime={jogo.kickoff}>{horaDoJogo.format(new Date(jogo.kickoff))}</time>}
+          <span>{jogo.home_team}</span>
         </span>
         <span className="pl-jogo-linha-equipa">
           <EmblemaEquipa nome={jogo.away_team} origem={jogo.away_crest} />
-          {jogo.away_team}
+          <span>{jogo.away_team}</span>
         </span>
       </span>
-      <span className="pl-jogo-linha-estado">{estado}{jogo.is_bonus && ' · Bónus'}</span>
-      <span aria-hidden="true">{aberto ? '▴' : '▾'}</span>
+      <span className="pl-jogo-linha-marcador">
+        {temResultado ? (
+          <><span className="pl-jogo-etiqueta-sr">Resultado oficial: </span><strong>{golosCasa} – {golosFora}</strong><small>Final</small></>
+        ) : <><time dateTime={jogo.kickoff}>{horaDoJogo.format(new Date(jogo.kickoff))}</time><small>{jogo.is_bonus ? 'Bónus ×2' : 'Jogo'}</small></>}
+      </span>
+      <span className="pl-jogo-linha-info">
+        <span className={`pl-jogo-linha-estado ${classeEstado}`}>{estado}</span>
+        {palpite && <span className="pl-jogo-linha-palpite">Palpite {palpite.casa} – {palpite.fora}</span>}
+        {temResultado && jogo.is_bonus && <small className="pl-jogo-linha-palpite">Bónus ×2</small>}
+      </span>
+      <span className="pl-jogo-linha-seta"><IconePainel nome="avancar" tamanho={17} /></span>
     </button>
+  )
+}
+
+function CampoGolos({ nome, lado, valor, desativado, alterar }) {
+  const numero = valor === '' ? null : Number(valor)
+  const valido = numero != null && Number.isInteger(numero) && numero >= 0
+  return (
+    <div className="pl-jogo-campo">
+      <span>{lado}</span>
+      <div className="pl-jogo-campo-controlos">
+        <button type="button" className="pl-jogo-ajustar" aria-label={`Retirar um golo a ${nome}`}
+          disabled={desativado || !valido || numero === 0} onClick={() => alterar(String(numero - 1))}>
+          <IconePainel nome="menos" tamanho={19} />
+        </button>
+        <input className="pl-jogo-input" type="number" min="0" step="1" inputMode="numeric"
+          aria-label={`Golos de ${nome}`} placeholder="–" value={valor} disabled={desativado}
+          onChange={e => alterar(e.target.value)} />
+        <button type="button" className="pl-jogo-ajustar" aria-label={`Acrescentar um golo a ${nome}`}
+          disabled={desativado || (valor !== '' && !valido)} onClick={() => alterar(String(valido ? numero + 1 : 1))}>
+          <IconePainel nome="mais-golo" tamanho={19} />
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -750,13 +409,17 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   const idsJornadas = new Set(jornadas.map(jornada => jornada.id))
   const porPrognosticar = new Set()
   const rascunhos = new Set()
+  let jogosAbertos = 0
   for (const jogo of jogos) {
     if (jogo.status !== 'scheduled' || new Date(jogo.kickoff).getTime() <= agora ||
       !idsJornadas.has(jogo.jornada_id)) continue
+    jogosAbertos += 1
     const guardado = prognosticosGuardados[jogo.id]
     if (!guardado) porPrognosticar.add(jogo.id)
     if (temRascunho(palpites[jogo.id], guardado)) rascunhos.add(jogo.id)
   }
+
+  const guardadosAbertos = jogosAbertos - porPrognosticar.size
 
   const jogosFiltrados = jogos.filter(jogo => {
     if (filtroJogos === 'por-jogar') {
@@ -803,37 +466,47 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
   )
 
   if (aCarregar) {
-    return <p>A carregar os jogos...</p>
+    return <p className="pl-jogos-mensagem" role="status">A carregar os jogos…</p>
   }
 
   if (erro) {
-    return <p style={{ color: '#f87171' }}>{erro}</p>
+    return <p className="pl-jogos-mensagem pl-jogos-erro" role="alert">{erro}</p>
   }
 
   return (
     <div className="pl-jogos">
-      <style>{estilos}</style>
+      <header className="pl-jogos-header">
+        <p className="pl-jogos-kicker">Centro de jogos</p>
+        <h2 className="pl-jogos-titulo">Os meus prognósticos</h2>
+        <p className="pl-jogos-subtitulo">Faz os teus palpites e acompanha os resultados.</p>
+      </header>
 
-      <h2 className="pl-jogos-titulo">
-        ⚽ Jogos da Predict League
-      </h2>
-
-      <p className="pl-jogos-subtitulo">
-        Faz os teus prognósticos e acompanha os pontos conquistados.
-      </p>
+      <section className="pl-jogos-resumo" aria-label="Prognósticos dos jogos futuros">
+        <div className="pl-jogos-resumo-numeros">
+          <div><span className="pl-jogos-resumo-icon"><IconePainel nome="prognosticos" tamanho={20} /></span><strong>{porPrognosticar.size}</strong><span>Por preencher</span></div>
+          <div><span className="pl-jogos-resumo-icon guardado"><IconePainel nome="visto" tamanho={20} /></span><strong>{guardadosAbertos}</strong><span>Guardados</span></div>
+          <div><span className="pl-jogos-resumo-icon"><IconePainel nome="jornadas" tamanho={20} /></span><strong>{jogosAbertos}</strong><span>Jogos futuros</span></div>
+        </div>
+        {jogosAbertos > 0 ? (
+          <div className="pl-jogos-progresso">
+            <progress max={jogosAbertos} value={guardadosAbertos} aria-label="Prognósticos guardados" />
+            <p>{guardadosAbertos} de {jogosAbertos} guardados {porPrognosticar.size === 0 && <span><IconePainel nome="visto" tamanho={16} /> Tudo em dia</span>}</p>
+          </div>
+        ) : <p className="pl-jogos-progresso-vazio">Sem jogos futuros com prognósticos abertos.</p>}
+      </section>
 
       {jogoDaLigacao && !jogoDaLigacaoDisponivel && (
         <p role="status">O jogo selecionado já não está disponível na época ativa.</p>
       )}
 
-      <div className="pl-jogos-filtros">
+      <div className="pl-jogos-filtros" role="group" aria-label="Filtrar jogos">
         {[
-          ['todos', '⚽ Todos'],
-          ['por-jogar', '📅 Por jogar'],
-          ['por-prognosticar', `🎯 Por prognosticar (${porPrognosticar.size})`],
-          ['rascunhos', `✏️ Rascunhos (${rascunhos.size})`],
-          ['terminados', '🏁 Terminados'],
-        ].map(([valor, nome]) => (
+          ['todos', 'Todos', null],
+          ['por-jogar', 'Por jogar', null],
+          ['por-prognosticar', 'Em falta', porPrognosticar.size],
+          ['rascunhos', 'Rascunhos', rascunhos.size],
+          ['terminados', 'Terminados', null],
+        ].map(([valor, nome, contagem]) => (
           <button
             key={valor}
             type="button"
@@ -843,7 +516,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
             }
             onClick={() => setFiltroJogos(valor)}
           >
-            {nome}
+            {nome}{contagem != null && <span className="pl-jogos-filtro-count">{contagem}</span>}
           </button>
         ))}
       </div>
@@ -851,7 +524,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
       {mensagemForaDosCartoes && <EstadoGravacao estado={estadoGravacao} />}
 
       {grupos.length === 0 ? (
-        <p role="status">{mostrarPendentes
+        <p className="pl-jogos-mensagem" role="status">{mostrarPendentes
           ? 'Não tens prognósticos em falta para os jogos com prazo aberto.'
           : mostrarRascunhos
             ? 'Não tens rascunhos com prazo aberto.'
@@ -860,23 +533,24 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
         grupos.map(jornada => (
           <details key={jornada.id} open className="pl-jornada">
             <summary className="pl-jornada-summary">
-              📅 {jornada.nome || `Jornada ${jornada.numero}`}
-              {' '}— {jornada.jogos.length}
-              {jornada.jogos.length === 1 ? ' jogo' : ' jogos'}
+              <span className="pl-jornada-identidade"><IconePainel nome="jornadas" tamanho={19} /><strong>{jornada.nome || `Jornada ${jornada.numero}`}</strong></span>
+              <span className="pl-jornada-total">{jornada.jogos.length} {jornada.jogos.length === 1 ? 'jogo' : 'jogos'}</span>
+              <span className="pl-jornada-seta"><IconePainel nome="avancar" tamanho={17} /></span>
             </summary>
 
             <div className="pl-jornada-conteudo">
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <button
+              <div className="pl-jornada-acoes">
+                {jornada.jogos.some(j => new Date(j.kickoff).getTime() > agora) && <button
                   type="button"
                   className="pl-jogo-botao"
                   onClick={() => guardarTodosPalpites(`grupo:${jornada.id}`, jornada.jogos)}
                   disabled={aGuardar !== null}
                 >
                   {aGuardar === `grupo:${jornada.id}`
-                    ? '⏳ A guardar prognósticos...'
-                    : mostrarRascunhos ? '💾 Guardar rascunhos completos' : '💾 Guardar todos os prognósticos'}
-                </button>
+                    ? 'A guardar prognósticos…'
+                    : mostrarRascunhos ? 'Guardar rascunhos completos' : 'Guardar todos os prognósticos'}
+                  <IconePainel nome="visto" tamanho={18} />
+                </button>}
                 {estadoGravacao?.alvo === `grupo:${jornada.id}` && <EstadoGravacao estado={estadoGravacao} />}
               </div>
               {jornada.jogos.map((jogo, indice) => {
@@ -901,10 +575,13 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
 
                 const aberto = detalheAberto === jogo.id
                 const estado = podePrognosticar
-                  ? rascunho ? 'Alterações por guardar' : guardado ? 'Prognóstico guardado' : 'Por prognosticar'
-                  : !guardado ? 'Sem prognóstico' : resultado?.points != null
-                    ? `${guardado.casa}–${guardado.fora} · ${resultado.points} pts`
-                    : `Prognóstico ${guardado.casa}–${guardado.fora}`
+                  ? rascunho ? 'Rascunho' : guardado ? 'Guardado' : 'Em falta'
+                  : !guardado ? 'Sem palpite' : resultado?.points != null
+                    ? `+${resultado.points} pts`
+                    : 'Encerrado'
+                const classeEstado = podePrognosticar
+                  ? rascunho ? 'rascunho' : guardado ? 'guardado' : 'pendente'
+                  : resultado?.points != null && guardado ? resultado.exact_score ? 'exato' : resultado.points > 0 ? 'guardado' : 'sem-pontos' : 'neutro'
 
                 const cartao = aberto ? (
                   <div id={`detalhe-${jogo.id}`} className="pl-jogo-cartao"
@@ -934,7 +611,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
 
                       {jogo.is_bonus && (
                         <span className="pl-jogo-bonus">
-                          ⭐ Jogo Bónus · Pontos a dobrar
+                          <IconePainel nome="conquistas" tamanho={16} /> Jogo bónus · ×2
                         </span>
                       )}
                     </div>
@@ -958,29 +635,17 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                     </div>
 
                     {resultado && resultado.points !== null && (
-                      <div className="pl-jogo-resultado">
-                        <p>
-                          🎯 O teu prognóstico:
-                          {' '}{guardado?.casa}–{guardado?.fora}
-                        </p>
-
-                        <p className="pl-jogo-pontos">
-                          🏆 Pontos conquistados: +{resultado.points}
-                        </p>
-
-                        {resultado.exact_score ? (
-                          <p style={{ color: '#22c55e' }}>
-                            🎯 Acertaste no resultado exato!
-                          </p>
-                        ) : resultado.points > 0 ? (
-                          <p style={{ color: '#f0d477' }}>
-                            ✅ Acertaste na tendência!
-                          </p>
-                        ) : (
-                          <p style={{ color: '#f87171' }}>
-                            ❌ Não acertaste no prognóstico.
-                          </p>
-                        )}
+                      <div className={`pl-jogo-resultado ${resultado.exact_score ? 'exato' : resultado.points > 0 ? 'positivo' : 'negativo'}`}>
+                        <div>
+                          <span className="pl-jogos-kicker">O teu prognóstico</span>
+                          <strong className="pl-jogo-resultado-palpite">{guardado ? `${guardado.casa} – ${guardado.fora}` : '—'}</strong>
+                          <p>{resultado.exact_score ? 'Resultado exato!' : resultado.points > 0 ? 'Tendência certa!' : 'Sem acerto'}</p>
+                        </div>
+                        <div className="pl-jogo-resultado-pontos">
+                          <IconePainel nome="liga" tamanho={23} />
+                          <strong className="pl-jogo-pontos">+{resultado.points}</strong>
+                          <span>{resultado.points === 1 ? 'ponto' : 'pontos'}</span>
+                        </div>
                       </div>
                     )}
 
@@ -988,44 +653,13 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
 
                     {!comecou ? (
                       <div>
-                        <p style={{
-                          textAlign: 'center',
-                          color: '#cbd5e1',
-                        }}>
-                          🎯 O teu prognóstico
-                        </p>
-
+                        <p className="pl-jogo-palpite-titulo">O teu prognóstico</p>
                         <div className="pl-jogo-inputs">
-                          <input
-                            className="pl-jogo-input"
-                            type="number"
-                            min="0"
-                            step="1"
-                            aria-label={`Golos de ${jogo.home_team}`}
-                            placeholder="Casa"
-                            value={palpites[jogo.id]?.casa ?? ''}
-                            disabled={aGuardar !== null}
-                            onChange={e => alterarPalpite(jogo.id, 'casa', e.target.value)}
-                          />
-
-                          <span style={{
-                            color: '#d4af37',
-                            fontSize: '22px',
-                          }}>
-                            –
-                          </span>
-
-                          <input
-                            className="pl-jogo-input"
-                            type="number"
-                            min="0"
-                            step="1"
-                            aria-label={`Golos de ${jogo.away_team}`}
-                            placeholder="Fora"
-                            value={palpites[jogo.id]?.fora ?? ''}
-                            disabled={aGuardar !== null}
-                            onChange={e => alterarPalpite(jogo.id, 'fora', e.target.value)}
-                          />
+                          <CampoGolos nome={jogo.home_team} lado="Casa" valor={palpites[jogo.id]?.casa ?? ''}
+                            desativado={aGuardar !== null} alterar={valor => alterarPalpite(jogo.id, 'casa', valor)} />
+                          <span className="pl-jogo-input-separador" aria-hidden="true">–</span>
+                          <CampoGolos nome={jogo.away_team} lado="Fora" valor={palpites[jogo.id]?.fora ?? ''}
+                            desativado={aGuardar !== null} alterar={valor => alterarPalpite(jogo.id, 'fora', valor)} />
                         </div>
 
                         <div className="pl-jogo-rodape">
@@ -1037,7 +671,8 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                           >
                             {aGuardar === jogo.id
                               ? 'A guardar...'
-                              : '💾 Guardar prognóstico'}
+                              : 'Guardar prognóstico'}
+                            <IconePainel nome="visto" tamanho={19} />
                           </button>
                           {guardado && rascunho && (
                             <button type="button" className="pl-jogo-secundario pl-palpite-repor"
@@ -1047,18 +682,15 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                           )}
                           {podePrognosticar && (
                             <button type="button" className="pl-jogo-secundario"
-                              onClick={() => adicionarJogoAoCalendario(jogo)}>Adicionar ao calendário</button>
+                              onClick={() => adicionarJogoAoCalendario(jogo)}><IconePainel nome="jornadas" tamanho={17} /> Adicionar ao calendário</button>
                           )}
                           <EstadoGravacao estado={gravacaoDoJogo} />
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <p style={{
-                          color: '#94a3b8',
-                          fontSize: '13px',
-                        }}>
-                          🔒 Prognósticos encerrados — o jogo já começou.
+                        <p className="pl-jogo-encerrado">
+                          <IconePainel nome="cadeado" tamanho={17} /> Prognósticos encerrados — o jogo já começou.
                         </p>
 
                         <PalpiteDaLiga key={jogo.id} jogo={jogo} />
@@ -1071,8 +703,8 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                           {aCarregarPrognosticos === jogo.id
                             ? 'A carregar...'
                             : jogoAberto === jogo.id
-                              ? '✖ Fechar prognósticos'
-                              : '👥 Ver prognósticos'}
+                              ? 'Fechar prognósticos'
+                              : 'Ver prognósticos'}
                         </button>
 
                         {jogoAberto === jogo.id &&
@@ -1108,7 +740,7 @@ function JogosParticipante({ competicaoId, jogoDaLigacao, filtroInicial = 'todos
                 return (
                   <Fragment key={jogo.id}>
                     {novoDia && <h3 className="pl-jogos-dia">{dia}</h3>}
-                    <LinhaJogo jogo={jogo} aberto={aberto} estado={estado} golosCasa={golosCasa} golosFora={golosFora}
+                    <LinhaJogo jogo={jogo} aberto={aberto} estado={estado} classeEstado={classeEstado} palpite={guardado} golosCasa={golosCasa} golosFora={golosFora}
                       alternar={() => setDetalhe({ ligacao: jogoDaLigacao, id: aberto ? null : jogo.id })} />
                     {cartao}
                   </Fragment>

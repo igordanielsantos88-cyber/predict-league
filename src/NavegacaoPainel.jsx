@@ -1,11 +1,12 @@
 import './painel.css'
+import IconePainel from './IconePainel'
 
 const itens = [
-  ['inicio', '⌂', 'Início'],
-  ['prognosticos', '⚽', 'Jogos'],
-  ['liga', '▥', 'Classificação'],
-  ['notificacoes', '🔔', 'Avisos'],
-  ['mais', '⋯', 'Mais'],
+  ['inicio', 'Início'],
+  ['prognosticos', 'Jogos'],
+  ['liga', 'Classificação'],
+  ['notificacoes', 'Avisos'],
+  ['mais', 'Mais'],
 ]
 
 export function BarraPainel({ pagina, abrir, naoLidas }) {
@@ -14,11 +15,11 @@ export function BarraPainel({ pagina, abrir, naoLidas }) {
 
   return (
     <nav className="pl-barra" aria-label="Navegação principal">
-      {itens.map(([id, simbolo, nome]) => (
+      {itens.map(([id, nome]) => (
         <button type="button" key={id} aria-current={id === selecionado ? 'page' : undefined}
           aria-label={id === 'notificacoes' && naoLidas > 0 ? `Avisos (${naoLidas} por ler)` : nome}
           onClick={() => abrir(id)}>
-          <span className="pl-barra-icone" aria-hidden="true">{simbolo}
+          <span className="pl-barra-icone" aria-hidden="true"><IconePainel nome={id} />
             {id === 'notificacoes' && naoLidas > 0 && <small>{naoLidas > 99 ? '99+' : naoLidas}</small>}
           </span>
           <span>{nome}</span>
@@ -37,7 +38,7 @@ export function SecoesPainel({ secoes, abrir, estaDisponivel, outras = false }) 
         {lista.map(secao => (
           <button type="button" key={secao.id} className="pl-card" onClick={() => abrir(secao.id)}
             disabled={!estaDisponivel(secao.id)}>
-            <span className="pl-card-icon" aria-hidden="true">{secao.icone}</span>
+            <span className="pl-card-icon" aria-hidden="true"><IconePainel nome={secao.id} tamanho={24} /></span>
             <h3>{secao.nome}</h3>
             <p>{secao.descricao}</p>
           </button>
