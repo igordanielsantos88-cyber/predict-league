@@ -1,0 +1,149 @@
+/* Prognósticos — interface alinhada com o novo dashboard. */
+.pl-content.pl-content-jogos { padding: 0; border: 0; background: transparent; }
+.pl-jogos { color: var(--pl-texto); font-family: var(--pl-fonte); text-align: left; min-width: 0; }
+.pl-jogos * { box-sizing: border-box; }
+.pl-jogos-header { margin-bottom: 20px; }
+.pl-jogos-kicker { color: var(--pl-ouro); text-transform: uppercase; font-size: 11px; font-weight: 750; letter-spacing: .095em; line-height: 1.4; margin: 0 0 5px; }
+.pl-jogos-titulo { color: var(--pl-texto); font-size: clamp(26px,4vw,36px); font-weight: 800; letter-spacing: -.04em; margin: 3px 0 5px; }
+.pl-jogos-subtitulo { color: var(--pl-secundario); font-size: 13px; }
+.pl-jogos-resumo { border: 1px solid var(--pl-borda); border-radius: 18px; background: var(--pl-superficie); padding: clamp(13px,2.4vw,22px); margin-bottom: 16px; }
+.pl-jogos-resumo-numeros { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.pl-jogos-resumo-numeros > div { background: #101927; border: 1px solid var(--pl-borda); border-radius: 12px; min-width: 0; padding: clamp(9px,2vw,15px); display: grid; gap: 5px; }
+.pl-jogos-resumo-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--pl-ouro-suave); color: var(--pl-ouro); }
+.pl-jogos-resumo-icon.guardado { background: #193630; color: var(--pl-sucesso); }
+.pl-jogos-resumo-numeros strong { font-variant-numeric: tabular-nums; font-size: clamp(23px,4vw,34px); font-weight: 800; line-height: 1.1; }
+.pl-jogos-resumo-numeros > div:first-child strong { color: var(--pl-ouro); }
+.pl-jogos-resumo-numeros > div > span:last-child { color: var(--pl-secundario); font-size: clamp(10px,2.8vw,13px); line-height: 1.3; overflow-wrap: anywhere; }
+.pl-jogos-progresso { margin-top: 15px; }
+.pl-jogos-progresso progress { width: 100%; display: block; height: 8px; border: 0; appearance: none; background: var(--pl-borda); border-radius: 10px; overflow: hidden; accent-color: var(--pl-ouro); }
+.pl-jogos-progresso progress::-webkit-progress-bar { background: var(--pl-borda); border-radius: 10px; }
+.pl-jogos-progresso progress::-webkit-progress-value { background: var(--pl-ouro); border-radius: 10px; }
+.pl-jogos-progresso progress::-moz-progress-bar { background: var(--pl-ouro); border-radius: 10px; }
+.pl-jogos-progresso p, .pl-jogos-progresso-vazio { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px; color: var(--pl-secundario); font-size: 11px; margin: 8px 0 0; }
+.pl-jogos-progresso p > span { display: inline-flex; gap: 4px; align-items: center; color: var(--pl-sucesso); }
+.pl-jogos-filtros { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; }
+.pl-jogos-filtro { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--pl-borda); background: var(--pl-superficie); color: var(--pl-secundario); font: 650 12px/1.3 var(--pl-fonte); cursor: pointer; }
+.pl-jogos-filtro:hover { border-color: var(--pl-ouro); }
+.pl-jogos-filtro.ativo { background: var(--pl-ouro); border-color: var(--pl-ouro); color: var(--pl-sobre-ouro); }
+.pl-jogos-filtro-count { border-radius: 6px; padding: 2px 6px; background: #2b3a4e; color: var(--pl-texto); font-variant-numeric: tabular-nums; font-size: 10px; }
+.pl-jogos-filtro.ativo .pl-jogos-filtro-count { background: #21180620; color: var(--pl-sobre-ouro); }
+.pl-jogos-mensagem { color: var(--pl-secundario); font-size: 14px; text-align: center; padding: 22px 14px; background: var(--pl-superficie); border: 1px solid var(--pl-borda); border-radius: 14px; }
+.pl-jogos-erro { color: var(--pl-erro); }
+.pl-jornada { border: 1px solid var(--pl-borda); border-radius: 16px; margin-bottom: 14px; background: var(--pl-superficie); min-width: 0; }
+.pl-jornada-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 13px 15px; border-radius: 15px; background: var(--pl-superficie-elevada); color: var(--pl-texto); cursor: pointer; list-style: none; }
+.pl-jornada-summary::-webkit-details-marker { display: none; }
+.pl-jornada-summary::marker { content: ''; }
+.pl-jornada[open] > .pl-jornada-summary { border-radius: 15px 15px 0 0; border-bottom: 1px solid var(--pl-borda); }
+.pl-jornada-identidade { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.pl-jornada-identidade .pl-icon { color: var(--pl-ouro); }
+.pl-jornada-identidade strong { font-size: 14px; overflow-wrap: anywhere; }
+.pl-jornada-total { color: var(--pl-secundario); font-size: 11px; white-space: nowrap; }
+.pl-jornada-seta, .pl-jogo-linha-seta { display: flex; align-items: center; justify-content: center; color: var(--pl-secundario); }
+.pl-jornada[open] .pl-jornada-seta, .pl-jogo-linha[aria-expanded=true] .pl-jogo-linha-seta { transform: rotate(90deg); }
+.pl-jornada-conteudo { padding: clamp(9px,2vw,17px); }
+.pl-jornada-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pl-jornada-acoes:not(:empty) { margin-bottom: 9px; }
+.pl-jornada-acoes .pl-jogo-botao { background: var(--pl-ouro-suave); border: 1px solid #6c5830; color: var(--pl-ouro); width: auto; }
+.pl-jornada-acoes .pl-jogo-botao:hover:not(:disabled) { background: #42371f; }
+.pl-jogos-dia { color: var(--pl-secundario); font-size: 12px; font-weight: 650; margin: 13px 0 8px; text-transform: capitalize; }
+.pl-jogo-linha { display: grid; grid-template-columns: minmax(0,1fr) minmax(46px, auto) minmax(80px, auto) 16px; align-items: center; gap: clamp(6px,1.8vw,14px); width: 100%; min-height: 78px; padding: 10px 12px; margin: 0 0 7px; border: 1px solid var(--pl-borda); border-radius: 12px; background: #101927; color: var(--pl-texto); font: inherit; text-align: left; cursor: pointer; }
+.pl-jogo-linha:hover, .pl-jogo-linha[aria-expanded=true] { border-color: var(--pl-ouro); background: var(--pl-superficie-elevada); }
+.pl-jogo-linha-equipas { display: grid; gap: 7px; min-width: 0; }
+.pl-jogo-linha-equipa { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 650; line-height: 1.3; }
+.pl-jogo-linha-equipa > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.pl-jogo-linha-equipa .pl-emblema { --pl-emblema-tamanho: 27px; --pl-emblema-letra: 10px; border-radius: 7px; }
+.pl-jogo-linha-marcador { display: grid; gap: 4px; justify-items: center; text-align: center; color: var(--pl-texto); font-size: 13px; font-weight: 750; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pl-jogo-linha-marcador > strong { color: var(--pl-ouro); font-size: 17px; }
+.pl-jogo-linha-marcador > small { font-size: 10px; font-weight: 500; color: var(--pl-secundario); }
+.pl-jogo-linha-info { display: grid; gap: 4px; justify-items: end; min-width: 0; text-align: right; }
+.pl-jogo-linha-estado { display: inline-block; font-size: 10px; font-weight: 750; text-align: center; padding: 5px 7px; border-radius: 6px; background: #263449; color: var(--pl-secundario); white-space: nowrap; line-height: 1.3; }
+.pl-jogo-linha-estado.pendente { background: #463719; color: #ffe1a0; }
+.pl-jogo-linha-estado.rascunho { background: #493725; color: #ffd2a0; }
+.pl-jogo-linha-estado.guardado, .pl-jogo-linha-estado.exato { background: #193630; color: #a7f3d0; }
+.pl-jogo-linha-estado.sem-pontos { background: #452731; color: #fecdd3; }
+.pl-jogo-linha-palpite { color: var(--pl-secundario); font-size: 10px; line-height: 1.3; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pl-jogo-cartao { margin: 0 0 14px; padding: clamp(12px,3vw,24px); border: 1px solid var(--pl-borda); border-radius: 14px; background: linear-gradient(135deg,#203149,var(--pl-superficie) 65%); text-align: center; min-width: 0; }
+.pl-jogo-cartao:focus { outline: 2px solid var(--pl-ouro); outline-offset: 3px; scroll-margin-top: 16px; }
+.pl-jogo-topo { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; font-size: 11px; }
+.pl-jogo-data, .pl-jogo-prazo { color: var(--pl-secundario); font-size: 12px; }
+.pl-jogo-prazo-urgente { background: #463719; color: #ffe1a0; padding: 4px 8px; border-radius: 6px; font-weight: 700; }
+.pl-palpite-estado { color: #ffe1a0; background: #463719; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; }
+.pl-palpite-guardado { background: #193630; color: #a7f3d0; }
+.pl-palpite-rascunho { background: #493725; color: #ffd2a0; }
+.pl-jogo-bonus { display: inline-flex; align-items: center; gap: 4px; color: var(--pl-ouro); background: var(--pl-ouro-suave); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; }
+.pl-jogo-equipas { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 10px; margin: 15px 0; text-align: center; }
+.pl-jogo-equipa { min-width: 0; font-size: clamp(13px,3.8vw,19px); line-height: 1.25; font-weight: 750; overflow-wrap: anywhere; }
+.pl-jogos .pl-jogo-equipas .pl-jogo-equipa { display: grid; gap: 8px; justify-items: center; }
+.pl-jogo-equipa .pl-emblema { --pl-emblema-tamanho: clamp(50px,13vw,74px); --pl-emblema-letra: 18px; border-radius: 13px; }
+.pl-jogo-equipa .pl-emblema img { width: 82%; height: 82%; }
+.pl-jogo-marcador { font-size: clamp(25px,5vw,36px); color: var(--pl-ouro); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pl-jogo-versus { color: var(--pl-secundario); font-size: 13px; font-weight: 750; }
+.pl-jogo-etiqueta-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pl-jogo-divisor { height: 1px; background: var(--pl-borda); margin: 16px 0; }
+.pl-jogo-palpite-titulo { font-size: 14px; font-weight: 750; margin: 0; }
+.pl-jogo-inputs { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: end; gap: 8px; margin: 12px auto 16px; max-width: 420px; }
+.pl-jogo-campo { display: grid; gap: 6px; min-width: 0; }
+.pl-jogo-campo > span { color: var(--pl-secundario); font-size: 11px; }
+.pl-jogo-campo-controlos { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 5px; align-items: center; }
+.pl-jogo-ajustar { display: flex; justify-content: center; align-items: center; height: 44px; width: 44px; border: 1px solid var(--pl-borda); border-radius: 9px; background: #101927; color: var(--pl-ouro); padding: 0; cursor: pointer; }
+.pl-jogo-ajustar:hover:not(:disabled) { border-color: var(--pl-ouro); }
+.pl-jogo-input { min-width: 0; width: 100%; height: 48px; padding: 5px 3px; appearance: textfield; -moz-appearance: textfield; background: var(--pl-fundo); color: var(--pl-texto); border: 1px solid var(--pl-borda); border-radius: 10px; font: 750 25px/1.2 var(--pl-fonte); text-align: center; font-variant-numeric: tabular-nums; }
+.pl-jogo-input::-webkit-outer-spin-button, .pl-jogo-input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.pl-jogo-input::placeholder { color: var(--pl-secundario); opacity: .8; }
+.pl-jogo-input:focus { border-color: var(--pl-ouro); }
+.pl-jogo-input-separador { align-self: end; color: var(--pl-secundario); font-weight: 700; padding-bottom: 12px; }
+.pl-jogo-rodape { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pl-jogo-botao, .pl-jogo-secundario { min-height: 44px; display: inline-flex; justify-content: center; align-items: center; gap: 7px; padding: 10px 13px; border-radius: 10px; font: 700 13px/1.35 var(--pl-fonte); cursor: pointer; }
+.pl-jogo-botao { background: var(--pl-ouro); color: var(--pl-sobre-ouro); border: 1px solid transparent; }
+.pl-jogo-botao:hover:not(:disabled) { background: var(--pl-ouro-forte); }
+.pl-jogo-rodape > .pl-jogo-botao { flex: 1 0 100%; min-height: 48px; }
+.pl-jogo-secundario { border: 1px solid var(--pl-borda); background: #101927; color: var(--pl-texto); }
+.pl-jogo-secundario:hover:not(:disabled) { border-color: var(--pl-ouro); color: var(--pl-ouro); }
+.pl-jogos button:disabled, .pl-jogo-input:disabled { opacity: .5; cursor: not-allowed; }
+.pl-gravacao { flex: 1 0 100%; color: var(--pl-sucesso); font-size: 12px; margin: 5px 0 0; }
+.pl-gravacao-erro { color: var(--pl-erro); }
+.pl-jogo-resultado { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 13px; margin: 15px 0; background: #101927; border: 1px solid var(--pl-borda); border-radius: 12px; text-align: left; }
+.pl-jogo-resultado.exato { border-color: #35654e; }
+.pl-jogo-resultado-palpite { display: block; font-size: 25px; line-height: 1.3; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pl-jogo-resultado p { font-size: 12px; color: var(--pl-secundario); }
+.pl-jogo-resultado.exato p, .pl-jogo-resultado.positivo p { color: var(--pl-sucesso); }
+.pl-jogo-resultado.negativo p { color: var(--pl-erro); }
+.pl-jogo-resultado-pontos { display: grid; justify-items: center; gap: 3px; min-width: 70px; color: var(--pl-ouro); padding: 9px; border-radius: 10px; background: var(--pl-ouro-suave); }
+.pl-jogo-resultado-pontos span { color: var(--pl-secundario); font-size: 10px; }
+.pl-jogo-pontos { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pl-jogo-encerrado { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: var(--pl-secundario); margin-bottom: 12px; }
+.pl-jogo-outros { background: #101927; border: 1px solid var(--pl-borda); padding: 13px; border-radius: 12px; margin-top: 12px; text-align: left; font-size: 12px; }
+.pl-palpite-liga { margin-bottom: 12px; }
+.pl-palpite-liga h4 { margin: 0 0 8px; color: var(--pl-texto); font-size: 15px; }
+.pl-palpite-liga p { margin: 8px 0; color: var(--pl-secundario); }
+.pl-palpite-liga-linha { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px 8px; margin: 10px 0; overflow-wrap: anywhere; }
+.pl-palpite-liga-barra { grid-column: 1/-1; height: 6px; border-radius: 6px; background: var(--pl-borda); overflow: hidden; }
+.pl-palpite-liga-barra span { display: block; height: 100%; background: var(--pl-ouro); }
+.pl-jogo-outro { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--pl-borda); }
+.pl-jogo-outro:last-child { border-bottom: 0; }
+@media (max-width: 760px) {
+  .pl-jogos-header { margin-bottom: 16px; }
+  .pl-jogos-filtros { gap: 6px; }
+  .pl-jogos-filtro { min-height: 42px; padding: 7px 10px; font-size: 11px; }
+  .pl-jornada-summary { padding: 11px 10px; gap: 6px; }
+  .pl-jogo-linha { grid-template-columns: minmax(0,1fr) auto auto 13px; gap: 6px; padding: 9px 7px; }
+  .pl-jogo-linha-equipa { gap: 5px; font-size: 12px; }
+  .pl-jogo-linha-equipa .pl-emblema { --pl-emblema-tamanho: 25px; }
+  .pl-jogo-linha-estado { padding: 4px 5px; font-size: 9px; }
+  .pl-jogo-linha-marcador > strong { font-size: 14px; }
+  .pl-jogo-linha-palpite { font-size: 9px; }
+  .pl-jogo-campo-controlos { grid-template-columns: 44px minmax(0,1fr) 44px; gap: 3px; }
+}
+@media (max-width: 390px) {
+  .pl-jogo-inputs { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .pl-jogo-input-separador { display: none; }
+  .pl-jogo-campo-controlos { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+  .pl-jogo-input { grid-column: 1/-1; grid-row: 1; }
+  .pl-jogo-ajustar { width: 100%; }
+  .pl-jogo-linha { grid-template-columns: minmax(0,1fr) auto auto; }
+  .pl-jogo-linha-seta { display: none; }
+}
+@media (max-width: 340px) {
+  .pl-jogo-linha { grid-template-columns: minmax(0,1fr) auto; }
+  .pl-jogo-linha-info { grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; }
+}

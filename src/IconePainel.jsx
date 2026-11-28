@@ -20,6 +20,9 @@ const formas = {
   visto: <><path d="m5 12 4 4L19 6" /></>,
   subir: <><path d="M12 19V5m-6 6 6-6 6 6" /></>,
   descer: <><path d="M12 5v14m-6-6 6 6 6-6" /></>,
+  menos: <><path d="M5 12h14" /></>,
+  'mais-golo': <><path d="M5 12h14M12 5v14" /></>,
+  cadeado: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></>,
   voltar: <><path d="m14 6-6 6 6 6M8 12h13" /></>,
 }
 export default function IconePainel({ nome, tamanho = 22 }) {

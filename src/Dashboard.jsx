@@ -155,8 +155,8 @@ function Dashboard({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, desti
       ) : pagina === 'mais' ? (
         <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} outras />
       ) : (
-        <main className="pl-content">
-          {pagina !== 'liga' && pagina !== 'estatisticas' && <h2 className="pl-content-title">
+        <main className={`pl-content${secaoAtual?.id === 'prognosticos' ? ' pl-content-jogos' : ''}`}>
+          {pagina !== 'liga' && pagina !== 'estatisticas' && secaoAtual?.id !== 'prognosticos' && <h2 className="pl-content-title">
             <IconePainel nome={secaoAtual?.id} tamanho={24} /> {secaoAtual?.nome}
           </h2>}
           {estaDisponivel(pagina)
