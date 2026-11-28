@@ -3,225 +3,10 @@ import { supabase } from './supabase'
 import Dashboard from './Dashboard'
 import PainelParticipante from './PainelParticipante'
 import { prepararSaidaPush, concluirSaidaPush, vigiarSessaoPush } from './push'
+import IconePainel, { MarcaPredictLeague } from './IconePainel'
+import './App.css'
 
 
-const cores = {
-  fundo: '#090d16',
-  cartao: '#172235',
-  dourado: '#e8c76a',
-  borda: '#8f722e',
-  texto: '#f8fafc',
-  secundario: '#94a3b8',
-}
-
-const estilos = `
-  .pl-app {
-    min-height: 100vh;
-    background: ${cores.fundo};
-    color: ${cores.texto};
-    font-family: Arial, sans-serif;
-  }
-
-  .pl-app * {
-    box-sizing: border-box;
-  }
-
-  .pl-topbar {
-    position: relative;
-    z-index: 20;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 14px 28px;
-    background: #111827;
-    border-bottom: 1px solid #594821;
-  }
-
-  .pl-topbar-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: ${cores.dourado};
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-  }
-
-  .pl-topbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .pl-logout {
-    background: #1b2535;
-    color: ${cores.dourado};
-    border: 1px solid ${cores.borda};
-    border-radius: 10px;
-    padding: 10px 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background .2s, border-color .2s;
-  }
-
-  .pl-logout:focus-visible {
-    outline: 2px solid #f0d477;
-    outline-offset: 3px;
-  }
-
-  .pl-sino {
-    position: relative;
-  }
-
-  .pl-sino-contador {
-    position: absolute;
-    top: -7px;
-    right: -8px;
-    min-width: 20px;
-    padding: 2px 5px;
-    border-radius: 20px;
-    background: #f0d477;
-    color: #211806;
-    font-size: 11px;
-    text-align: center;
-  }
-
-  .pl-logout:hover {
-    background: #302718;
-    border-color: #d4af37;
-  }
-
-  .pl-login-page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background:
-      radial-gradient(ellipse at 50% 20%, #302718, transparent 55%),
-      #090d16;
-  }
-
-  .pl-login-card {
-    width: 100%;
-    max-width: 410px;
-    padding: 36px;
-    background: linear-gradient(145deg, #1b2535, #111722);
-    border: 1px solid #8f722e;
-    border-radius: 22px;
-    box-shadow: 0 20px 60px #00000050;
-  }
-
-  .pl-login-icon {
-    width: 66px;
-    height: 66px;
-    display: grid;
-    place-items: center;
-    margin: 0 auto 18px;
-    background: linear-gradient(135deg, #f0d477, #a67c25);
-    border-radius: 18px;
-    font-size: 34px;
-  }
-
-  .pl-login-title {
-    margin: 0;
-    text-align: center;
-    color: ${cores.dourado};
-    font-size: 28px;
-  }
-
-  .pl-login-subtitle {
-    color: ${cores.secundario};
-    text-align: center;
-    margin: 12px 0 28px;
-    font-size: 14px;
-  }
-
-  .pl-login-label {
-    display: block;
-    margin-bottom: 8px;
-    color: #cbd5e1;
-    font-size: 13px;
-    font-weight: bold;
-  }
-
-  .pl-login-input {
-    display: block;
-    width: 100%;
-    padding: 13px 14px;
-    margin-bottom: 18px;
-    background: #0d1523;
-    color: white;
-    border: 1px solid #3d4655;
-    border-radius: 10px;
-    font-size: 15px;
-    outline: none;
-  }
-
-  .pl-login-input:focus {
-    border-color: #d4af37;
-    box-shadow: 0 0 0 3px #d4af3720;
-  }
-
-  .pl-login-submit {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #f0d477, #c69c32);
-    color: #211806;
-    border: none;
-    border-radius: 10px;
-    font-weight: bold;
-    font-size: 15px;
-    cursor: pointer;
-  }
-
-  .pl-login-submit:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .pl-login-switch {
-    width: 100%;
-    padding: 13px;
-    margin-top: 12px;
-    background: transparent;
-    color: ${cores.dourado};
-    border: 1px solid ${cores.borda};
-    border-radius: 10px;
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  .pl-login-message {
-    margin-top: 20px;
-    padding: 12px;
-    background: #29384d;
-    border-radius: 9px;
-    text-align: center;
-    color: #f8fafc;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  @media (max-width: 600px) {
-    .pl-topbar {
-      padding: 12px 16px;
-    }
-
-    .pl-topbar-brand {
-      font-size: 12px;
-    }
-
-    .pl-topbar-actions {
-      gap: 8px;
-    }
-
-    .pl-login-card {
-      padding: 25px 20px;
-    }
-  }
-`
 
 function App() {
   const [aSair, setASair] = useState(false)
@@ -460,9 +245,8 @@ function App() {
   if (aVerificarSessao) {
     return (
       <div className="pl-app">
-        <style>{estilos}</style>
         <div className="pl-login-page">
-          <p style={{ color: cores.dourado }}>
+          <p style={{ color: 'var(--pl-ouro)' }}>
             A carregar Predict League...
           </p>
         </div>
@@ -473,11 +257,10 @@ function App() {
   if (administrador || participante) {
     return (
       <div className="pl-app">
-        <style>{estilos}</style>
 
         <header className="pl-topbar">
           <div className="pl-topbar-brand">
-            <span>⚽</span>
+            <MarcaPredictLeague />
             <span>PREDICT LEAGUE</span>
           </div>
 
@@ -494,7 +277,7 @@ function App() {
                 setPedidoNotificacoes(n => n + 1)
               }}
             >
-              <span aria-hidden="true">🔔</span>
+              <IconePainel nome="notificacoes" />
               {naoLidas > 0 && <span className="pl-sino-contador" aria-hidden="true">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </button>
 
@@ -519,7 +302,6 @@ function App() {
 
   return (
     <div className="pl-app">
-      <style>{estilos}</style>
 
       <div className="pl-login-page">
         <form
@@ -527,7 +309,7 @@ function App() {
           onSubmit={modoRegisto ? registar : entrar}
         >
           <div className="pl-login-icon">
-            ⚽
+            <MarcaPredictLeague />
           </div>
 
           <h1 className="pl-login-title">

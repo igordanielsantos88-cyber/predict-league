@@ -4,6 +4,7 @@ import SecaoCarregavel from './SecaoCarregavel'
 import InicioPainel from './InicioPainel'
 import { obterResumoInicio } from './resumoInicio'
 import { BarraPainel, SecoesPainel } from './NavegacaoPainel'
+import IconePainel from './IconePainel'
 const JogosParticipante = lazy(() => import('./JogosParticipante'))
 const Liga = lazy(() => import('./Liga'))
 const HallDaFama = lazy(() => import('./HallDaFama'))
@@ -16,53 +17,16 @@ const Chat = lazy(() => import('./Chat'))
 
 
 const secoes = [
-  { id: 'prognosticos', icone: '🎯', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
-  { id: 'liga', icone: '🏆', nome: 'Classificação', descricao: 'Acompanha a tabela da competição' },
-  { id: 'notificacoes', icone: '🔔', nome: 'Notificações', descricao: 'Consulta os teus avisos de jogos, resultados e lembretes' },
-  { id: 'conquistas', icone: '🏅', nome: 'Conquistas', descricao: 'Descobre as tuas medalhas e acompanha o teu progresso' },
-  { id: 'duelo', icone: '⚔️', nome: 'Duelo', descricao: 'Compara o teu desempenho com outro participante' },
-  { id: 'estatisticas', icone: '📊', nome: 'Estatísticas', descricao: 'Consulta os números da competição' },
-  { id: 'hall-da-fama', icone: '🥇', nome: 'Hall da Fama', descricao: 'Consulta os campeões das épocas anteriores' },
-  { id: 'chat', icone: '💬', nome: 'Chat', descricao: 'Conversa com os participantes' },
+  { id: 'prognosticos', nome: 'Prognósticos', descricao: 'Consulta os jogos e faz os teus palpites' },
+  { id: 'liga', nome: 'Classificação', descricao: 'Acompanha a tabela da competição' },
+  { id: 'notificacoes', nome: 'Notificações', descricao: 'Consulta os teus avisos de jogos, resultados e lembretes' },
+  { id: 'conquistas', nome: 'Conquistas', descricao: 'Descobre as tuas medalhas e acompanha o teu progresso' },
+  { id: 'duelo', nome: 'Duelo', descricao: 'Compara o teu desempenho com outro participante' },
+  { id: 'estatisticas', nome: 'Estatísticas', descricao: 'Consulta os números da competição' },
+  { id: 'hall-da-fama', nome: 'Hall da Fama', descricao: 'Consulta os campeões das épocas anteriores' },
+  { id: 'chat', nome: 'Chat', descricao: 'Conversa com os participantes' },
 ]
 
-const estilos = `
-  .pl-dashboard { min-height:100vh; box-sizing:border-box; background:radial-gradient(ellipse at 50% 0%,#262013 0%,transparent 45%),#090d16; color:#f8fafc; padding:28px; padding-bottom:var(--pl-espaco-barra, 28px); font-family:Arial,sans-serif; }
-  .pl-dashboard * { box-sizing:border-box; }
-  .pl-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:28px; }
-  .pl-logo { display:flex; align-items:center; gap:12px; }
-  .pl-logo-icon { width:52px; height:52px; display:grid; place-items:center; background:linear-gradient(135deg,#d4af37,#8f6b1f); border-radius:15px; font-size:27px; box-shadow:0 6px 24px #d4af3726; }
-  .pl-logo h1 { margin:0; color:#e8c76a; font-size:clamp(22px,4vw,30px); letter-spacing:-.6px; }
-  .pl-subtitle { margin:5px 0 0; color:#94a3b8; font-size:13px; }
-  .pl-hero h2 { font-size:clamp(26px,5vw,38px); margin:12px 0; line-height:1.2; }
-  .pl-hero p { color:#cbd5e1; font-size:15px; line-height:1.7; margin:0 0 24px; }
-  .pl-gold-button { background:linear-gradient(135deg,#f0d477,#c69c32); color:#211806; border:0; border-radius:11px; padding:13px 22px; font-weight:bold; font-size:14px; cursor:pointer; transition:transform .2s,box-shadow .2s; }
-  .pl-gold-button:hover { transform:translateY(-2px); box-shadow:0 8px 25px #d4af3740; }
-  .pl-section-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:0 0 16px; }
-  .pl-section-title { color:#f8fafc; font-size:20px; margin:0; }
-  .pl-refresh { border:1px solid #594821; background:#1b2535; color:#e8c76a; border-radius:9px; padding:9px 13px; cursor:pointer; font-weight:bold; }
-  .pl-refresh:disabled { opacity:.55; cursor:wait; }
-  button.pl-stat { text-align:left; font:inherit; border-color:#8f722e; cursor:pointer; }
-  button.pl-stat:hover { border-color:#f0d477; }
-  button.pl-stat:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
-  button.pl-stat:disabled { opacity:.55; cursor:default; }
-  .pl-info { color:#94a3b8; font-size:13px; margin:-12px 0 22px; }
-  .pl-info-error { color:#fca5a5; }
-  .pl-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
-  .pl-card { display:flex; flex-direction:column; align-items:flex-start; background:linear-gradient(145deg,#1b2535,#111722); border:1px solid #3d3b30; border-radius:18px; padding:22px; color:#f8fafc; text-align:left; cursor:pointer; min-height:175px; width:100%; transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; }
-  .pl-card:hover { transform:translateY(-4px); border-color:#d4af37; box-shadow:0 12px 32px #00000045; }
-  .pl-card-icon { display:inline-grid; place-items:center; width:46px; height:46px; background:#d4af3717; border:1px solid #d4af3735; border-radius:13px; font-size:23px; margin-bottom:15px; }
-  .pl-card h3 { margin:0 0 8px; color:#e8c76a; font-size:17px; }
-  .pl-card p { color:#94a3b8; font-size:13px; line-height:1.6; margin:0; }
- 
-  .pl-back { background:#1b2535; border:1px solid #8f722e; color:#e8c76a; border-radius:10px; padding:11px 17px; cursor:pointer; font-weight:bold; }
-  .pl-content { background:#131c2b; border:1px solid #3d3b30; border-radius:18px; padding:22px; min-width:0; }
-  .pl-card:focus-visible,.pl-gold-button:focus-visible,.pl-back:focus-visible,.pl-refresh:focus-visible { outline:2px solid #f0d477; outline-offset:3px; }
-  @media (max-width:1000px) { .pl-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .pl-card:last-child { grid-column:auto; } }
-  @media (max-width:600px) { .pl-dashboard { padding-inline:16px; padding-top:16px; } .pl-header { margin-bottom:22px; } .pl-logo-icon { width:44px; height:44px; } .pl-grid { gap:12px; } .pl-card { min-height:155px; padding:16px; } .pl-card-icon { width:42px; height:42px; margin-bottom:12px; } .pl-card h3 { font-size:15px; } .pl-card p { font-size:12px; } .pl-content { padding:12px; } }
-  @media (max-width:360px) { .pl-grid { grid-template-columns:1fr; } }
-  @media (prefers-reduced-motion:reduce) { .pl-card,.pl-gold-button { transition:none; } .pl-card:hover,.pl-gold-button:hover { transform:none; } }
-`
 
 function PainelParticipante({ pedidoNotificacoes = 0, atualizarSino, naoLidasTotal, destino, limparLigacao }) {
   const [pagina, setPagina] = useState(() => {
@@ -152,17 +116,15 @@ useEffect(() => {
 
   return (
     <div className="pl-dashboard">
-      <style>{estilos}</style>
       <header className="pl-header">
         <div className="pl-logo">
-          <div className="pl-logo-icon">⚽</div>
           <div>
-            <h1>Predict League</h1>
-            <p className="pl-subtitle">A tua liga de prognósticos</p>
+            <h1>A tua liga</h1>
+            <p className="pl-subtitle">Predict League · A tua competição</p>
           </div>
         </div>
         {pagina !== 'inicio' && (
-          <button type="button" className="pl-back" onClick={() => abrir('inicio')}>← Dashboard</button>
+          <button type="button" className="pl-back" onClick={() => abrir('inicio')}><IconePainel nome="voltar" tamanho={18} /> Início</button>
         )}
       </header>
 
@@ -176,8 +138,8 @@ useEffect(() => {
         <SecoesPainel secoes={secoes} abrir={abrir} estaDisponivel={estaDisponivel} outras />
       ) : (
         <main className="pl-content">
-          {pagina !== 'liga' && pagina !== 'estatisticas' && <h2 style={{ color: '#e8c76a', marginTop: 0, marginBottom: '22px' }}>
-            {secaoAtual?.icone} {secaoAtual?.nome}
+          {pagina !== 'liga' && pagina !== 'estatisticas' && <h2 className="pl-content-title">
+            <IconePainel nome={secaoAtual?.id} tamanho={24} /> {secaoAtual?.nome}
           </h2>}
           {estaDisponivel(pagina)
             ? <SecaoCarregavel key={pagina}>{componentes[pagina]}</SecaoCarregavel>
